@@ -659,6 +659,29 @@ failure is expected, and the fix.
   rebuilt. Do not raise the parallel-job cap — it exists because
   the runner has 4 vCPUs.
 
+### 10. Camera patch fails: `baksmali` / `smali` / `apksigner` not found
+
+- **Why:** upstream's camera patch (`unica/patches/camera/
+  customize.sh` → `target/m51/patches/tweaks/patch_camera.py`,
+  added 2026-11-12) calls bare `baksmali`, `smali` and `apksigner`,
+  and neither upstream CI nor `setup-tools.sh` installs any of
+  them. Upstream's own CI has failed on every run since the patch
+  landed. Note the smali project has no GitHub releases at all
+  (repo archived 2026-06-19), so there is no official fat jar to
+  download.
+- **Symptoms:** `Build ROM` step dies ~90 s in with
+  `FileNotFoundError: [Errno 2] No such file or directory:
+  'baksmali'` from `patch_camera.py` line 22.
+- **Fix (in place since Build ROM #4):** `scripts/
+  install-smali-tools.sh`, run by the workflow right after `Build
+  dependencies`, puts `baksmali`/`smali`/`apksigner` into
+  `$TOOLS_DIR/bin` (already on PATH for Build ROM). `baksmali`/
+  `smali` run the classes relocated inside the apktool jar that
+  `build_dependencies.sh` just built, with a Maven Central thin-jar
+  fallback (org.smali 2.5.2); `apksigner` comes from Android
+  build-tools r34. The step verifies each tool with `--version` /
+  `version` and is idempotent, so cached runs skip it.
+
 ---
 
 ## 12. What we built in `kkisdevil/un1ca-universal` (verified 2026-11-23)
