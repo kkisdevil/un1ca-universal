@@ -682,6 +682,32 @@ failure is expected, and the fix.
   build-tools r34. The step verifies each tool with `--version` /
   `version` and is idempotent, so cached runs skip it.
 
+### 11. Kernel patch fails: `DOWNLOAD_FILE: URL is not set!`
+
+- **Why:** the upstream ParadigmKernel patch
+  (`target/m51/patches/kernel/customize.sh`) downloads the
+  LostPrime kernel (`m51-ksu*.zip`) from the latest release of
+  `kurtnettle/android_kernel_samsung_sm7150` through the GitHub
+  API, and it reads `$GITHUB_TOKEN` only — it never sees
+  `GH_TOKEN`. The workflow exported `GH_TOKEN` on the Build ROM
+  step, so the call went unauthenticated and hit the 60/hr
+  shared-runner-IP limit (the same 403 that killed Build ROM #1
+  in Validate), the API answered with a rate-limit error instead
+  of the release, and `KERNEL_URL` came back empty. The runner
+  does not export `GITHUB_TOKEN` by itself.
+- **Symptoms:** `Build ROM` step dies ~1 min in (after the ~1h
+  firmware download) with `(target/m51/patches/kernel/
+  customize.sh:18:DOWNLOAD_FILE) URL is not set!` and no ROM zip
+  is produced. The release and its `m51-ksu` asset do exist — the
+  API call itself is what failed.
+- **Fix (in place since Build ROM #5):** `GITHUB_TOKEN` is
+  exported at the `build` job level in `build.yml`, under the
+  exact name the upstream script reads, so every upstream step
+  that calls the GitHub API is authenticated. A `Pre-flight
+  kernel release` step runs the same API call + `m51-ksu`
+  pattern before `Build ROM`, so a repeat fails in seconds with
+  a clear message instead of after the firmware download.
+
 ---
 
 ## 12. What we built in `kkisdevil/un1ca-universal` (verified 2026-11-23)
