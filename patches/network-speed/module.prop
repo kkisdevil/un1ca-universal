@@ -1,0 +1,4 @@
+id=network-speed
+name=Real-time network speed in status bar
+author=salvogiangri
+description=Enables the real-time network speed indicator in the status bar (upstream UN1CA csc mod).
