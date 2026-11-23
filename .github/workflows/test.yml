@@ -1,0 +1,253 @@
+# Copyright (c) 2026 Kartik Deepak Sormare (kkisdevil) — UN1CA Universal
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# test.yml — the workflow tester.
+#
+# On every push / pull request and on manual dispatch, it proves the
+# repo is in a state a ROM build can start from — and fails LOUDLY on
+# a bad patch or device file, with the exact file and error in the log,
+# so the next fix round can target it.
+#
+# What it checks (in order):
+#   1. validate-patches  — every patches/ module has module.prop with
+#      id/name/author; every *.patch parses (git apply --stat) and has a
+#      Subject + diff --git header; smali/ paths use a valid partition;
+#      every customize.sh passes bash -n and shellcheck.
+#   2. validate-workflows — every .github/workflows/*.yml parses, has
+#      on/jobs/runs-on/steps, and every scripts/... it calls exists.
+#   3. validate-devices  — every devices/*.json (except _template.json)
+#      is valid (scripts/validate-device.sh) and the upstream
+#      repo/branch/target it points to actually exists (GitHub API,
+#      with retries).
+#   4. dry-run           — for each device, sparse-clone the upstream
+#      fork and run `source buildenv.sh <codename>`, verifying
+#      out/config.sh. NO firmware is downloaded.
+#
+# This is NOT the build. The full build is .github/workflows/build.yml
+# (dry-run mode, then full mode with the platform-key secrets).
+#
+# Modify-and-fix loop (standing user rule, 2026-11-23): if this workflow
+# fails, read the failing job's log — it names the exact file and error.
+# Fix that failure only, commit, push, and let it re-run. Repeat until
+# green. Do not delete the failing patch or test to make it pass, and do
+# not merge while red.
+
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "Device codename to dry-run (or 'all')"
+        required: false
+        default: "all"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-patches:
+    name: Validate patches
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate patch modules and patch files
+        run: python3 scripts/validate-patches.py
+
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq shellcheck
+          fi
+          shellcheck --version
+
+      - name: Shellcheck patch customize.sh files
+        # Same exclusions upstream UN1CA uses in its CI (SC1090/SC1091:
+        # sourcing files whose paths are only known at runtime).
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(patches/*/customize.sh)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No patches/*/customize.sh files found — nothing to shellcheck."
+            exit 0
+          fi
+          echo "Checking: ${files[*]}"
+          shellcheck -e SC1090,SC1091 "${files[@]}"
+
+  validate-workflows:
+    name: Validate workflows
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install PyYAML if missing
+        run: |
+          set -euo pipefail
+          python3 -c "import yaml" 2>/dev/null || python3 -m pip install --quiet pyyaml
+          python3 -c "import yaml; print('PyYAML OK')"
+
+      - name: Validate workflow YAML
+        run: python3 scripts/validate-workflows.py
+
+  validate-devices:
+    name: Validate devices
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Validate device JSON files
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for f in devices/*.json; do
+            case "$(basename "$f")" in
+              _template.json|soc-families.json) continue ;;
+            esac
+            found=1
+            echo "== $f =="
+            bash scripts/validate-device.sh "$f" || {
+              echo "::error file=$f::scripts/validate-device.sh failed for $f — see log above"
+              exit 1
+            }
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error file=devices::no device JSON files found under devices/ (excluding _template.json)"
+            exit 1
+          fi
+
+      - name: Check upstream repo/branch/target exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Retry loop: a single GitHub API hiccup must not fail the run,
+          # but a genuinely missing repo/branch/target must fail loudly.
+          check_upstream() {
+            local repo="$1" branch="$2" codename="$3"
+            local attempt=0
+            while [ "$attempt" -lt 3 ]; do
+              attempt=$((attempt + 1))
+              if curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                  "https://api.github.com/repos/$repo/branches/$branch" \
+                  -o /tmp/branch.json; then
+                break
+              fi
+              echo "Attempt $attempt: branch check failed for $repo@$branch — retrying in 10s..."
+              sleep 10
+            done
+            if [ ! -s /tmp/branch.json ]; then
+              echo "::error file=devices/$codename.json::upstream branch not found or unreachable after 3 attempts: $repo@$branch"
+              return 1
+            fi
+            # The target/<codename>/ directory must exist on that branch.
+            if ! curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/$repo/contents/target/$codename?ref=$branch" \
+                -o /tmp/target.json; then
+              echo "::error file=devices/$codename.json::target/$codename not found in $repo@$branch — the device has no target directory on that branch"
+              return 1
+            fi
+            echo "OK: $repo@$branch has target/$codename"
+          }
+          shopt -s nullglob
+          for f in devices/*.json; do
+            case "$(basename "$f")" in
+              _template.json|soc-families.json) continue ;;
+            esac
+            # The porter resolver is the single source of truth for
+            # which fork/branch a device builds from (same as build.yml).
+            # The device JSON has no top-level `source` object; it has
+            # source_repo / source_branch (primary upstream) plus an
+            # upstream[] list — read them through the resolver.
+            resolved="$(python3 scripts/resolve-device.py "$f")" || {
+              echo "::error file=$f::scripts/resolve-device.py failed for $f — see log above"
+              exit 1
+            }
+            repo="$(printf '%s' "$resolved" | sed -n 's/^source_repo=//p')"
+            branch="$(printf '%s' "$resolved" | sed -n 's/^source_branch=//p')"
+            codename="$(printf '%s' "$resolved" | sed -n 's/^codename=//p')"
+            if [ -z "$repo" ] || [ -z "$branch" ] || [ -z "$codename" ]; then
+              echo "::error file=$f::resolver returned no repo/branch/codename for $f"
+              exit 1
+            fi
+            echo "== $f: $repo@$branch target/$codename =="
+            check_upstream "$repo" "$branch" "$codename" || exit 1
+          done
+
+  dry-run:
+    name: Dry-run build config
+    runs-on: ubuntu-24.04
+    needs: [validate-patches, validate-workflows, validate-devices]
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Dry-run build config for each device (no firmware download)
+        env:
+          WANTED_DEVICE: ${{ inputs.device }}
+          DRY_RUN_LOG_DIR: ${{ github.workspace }}/dry-run-logs
+        run: |
+          set -euo pipefail
+          # On push/PR there is no workflow_dispatch input, so inputs.device
+          # is empty — treat empty as "all". Without this, every device
+          # would be skipped and the job would fail with "no device found".
+          WANTED_DEVICE="${WANTED_DEVICE:-all}"
+          shopt -s nullglob
+          ran=0
+          for f in devices/*.json; do
+            case "$(basename "$f")" in
+              _template.json|soc-families.json) continue ;;
+            esac
+            codename="$(python3 -c "import json; print(json.load(open('$f'))['codename'])")"
+            if [ "$WANTED_DEVICE" != "all" ] && [ "$WANTED_DEVICE" != "$codename" ]; then
+              continue
+            fi
+            resolved="$(python3 scripts/resolve-device.py "$f")" || {
+              echo "::error file=$f::scripts/resolve-device.py failed for $f — see log above"
+              exit 1
+            }
+            repo="$(printf '%s' "$resolved" | sed -n 's/^source_repo=//p')"
+            branch="$(printf '%s' "$resolved" | sed -n 's/^source_branch=//p')"
+            echo "================================================================"
+            echo "Dry-run: $codename from $repo@$branch (device file: $f)"
+            echo "================================================================"
+            bash scripts/dry-run-build.sh "$codename" "$repo" "$branch" || {
+              echo "::error file=$f::dry-run build config failed for $codename ($repo@$branch) — see the log above for the exact step"
+              exit 1
+            }
+            ran=1
+          done
+          if [ "$ran" -eq 0 ]; then
+            if [ "$WANTED_DEVICE" != "all" ]; then
+              echo "::error file=devices::no device named '$WANTED_DEVICE' found under devices/ — check the workflow_dispatch input"
+            else
+              echo "::error file=devices::no device JSON files found under devices/ (excluding _template.json)"
+            fi
+            exit 1
+          fi
+          echo "Dry-run green for all requested devices — no firmware was downloaded."
+
+      - name: Upload dry-run logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-dry-run-logs-${{ github.run_id }}
+          path: dry-run-logs/
+          if-no-files-found: ignore
+          retention-days: 7

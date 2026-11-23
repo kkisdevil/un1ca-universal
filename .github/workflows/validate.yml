@@ -1,0 +1,163 @@
+# Copyright (c) 2026 Kartik Deepak Sormare (kkisdevil) — UN1CA Universal
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Fast validation for this repo. Runs on every push/PR to main and on
+# manual dispatch. It downloads NO firmware and builds NO ROM.
+#
+# What it checks:
+#   1. Shellcheck on this repo's own scripts (same exclusions upstream
+#      uses in salvogiangri/UN1CA ci.yml: -e SC1090,SC1091).
+#   2. Every workflow YAML parses (python3 + PyYAML).
+#   3. Every devices/*.json is valid JSON and passes
+#      scripts/validate-device.sh (fields, firmware format, codename
+#      matches filename, SoC family exists in the manifest).
+#   4. The SoC manifest (devices/soc-families.json) parses, covers
+#      every device, and the resolver (scripts/resolve-device.py)
+#      maps each device to its upstream fork/branch.
+#   5. The upstream repos/branches the device files point to actually
+#      exist (GitHub API, unauthenticated): Arnav3078/UN1CA-SM7150
+#      @ seventeen, mehedihjoy0/UN1CA-SM7150 @ sixteen, and
+#      salvogiangri/UN1CA @ sixteen, plus target/<codename>/ in each
+#      source branch listed in the device file.
+name: Validate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/**'
+      - 'devices/**'
+      - 'scripts/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Run shellcheck
+        run: |
+          CODE=0
+          while IFS= read -r f; do
+            shellcheck -e SC1090,SC1091 -s bash "$f" || CODE=1
+          done < <(find scripts -name "*.sh")
+          exit $CODE
+
+  validate:
+    name: Validate workflows and devices
+    needs: shellcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Validate workflow YAML
+        run: |
+          python3 - <<'PY'
+          import glob, sys, yaml
+          bad = []
+          for path in sorted(glob.glob('.github/workflows/*.yml')):
+              try:
+                  with open(path) as f:
+                      yaml.safe_load(f)
+                  print(f"OK yaml: {path}")
+              except Exception as e:
+                  print(f"BAD yaml: {path}: {e}")
+                  bad.append(path)
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Validate device JSONs
+        run: |
+          shopt -s nullglob
+          files=(devices/*.json)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No device files found in devices/" >&2
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            # _template.json is a fill-in guide, not a device: its
+            # codename is a CHANGEME placeholder by design. Skip it.
+            # soc-families.json is the SoC manifest, not a device.
+            case "$(basename "$f")" in
+              _template.json|soc-families.json) continue ;;
+            esac
+            bash scripts/validate-device.sh "$f"
+          done
+
+      - name: Validate SoC manifest and porter resolution
+        run: |
+          # soc-families.json must parse, and every device must resolve
+          # to an upstream fork/branch through scripts/resolve-device.py
+          # — this is the same resolution the build workflow's `resolve`
+          # job runs, so a broken mapping fails here, fast, not mid-build.
+          python3 -m json.tool devices/soc-families.json >/dev/null \
+            && echo "OK json: devices/soc-families.json"
+          python3 - <<'PY'
+          import glob, json
+          manifest = json.load(open('devices/soc-families.json'))
+          families = manifest['families']
+          covered = {c for info in families.values() for c in info['devices']}
+          for path in sorted(glob.glob('devices/*.json')):
+              if path.endswith(('_template.json', 'soc-families.json')):
+                  continue
+              d = json.load(open(path))
+              assert d['codename'] in covered, f"{d['codename']} not in any SoC family"
+              print(f"OK manifest covers: {d['codename']}")
+          print(f"OK manifest: {len(families)} families, {len(covered)} codenames")
+          PY
+          for f in devices/*.json; do
+            case "$(basename "$f")" in
+              _template.json|soc-families.json) continue ;;
+            esac
+            python3 scripts/resolve-device.py "$f"
+          done
+        run: |
+          # Unauthenticated GitHub API: 60 requests/hour is plenty here.
+          # validate-device.sh --check-upstream already verifies the
+          # source repo/branch and target/<codename>/ for each device;
+          # this step additionally pins the base repo, which no device
+          # file builds from directly but every fork derives from.
+          for f in devices/*.json; do
+            case "$(basename "$f")" in
+              _template.json|soc-families.json) continue ;;
+            esac
+            bash scripts/validate-device.sh "$f" --check-upstream
+          done
+          curl -fsSL https://api.github.com/repos/salvogiangri/UN1CA/branches/sixteen >/dev/null \
+            && echo "Upstream OK: salvogiangri/UN1CA@sixteen"
+
+      # Modify-and-fix loop: validation evidence is always uploaded,
+      # even on failure, so a failing run can be fixed from the logs.
+      - name: Write validation summary
+        if: always()
+        run: |
+          mkdir -p logs
+          {
+            echo "run_id=${{ github.run_id }}"
+            echo "sha=${{ github.sha }}"
+            echo "ref=${{ github.ref }}"
+            echo "workflows:"; ls .github/workflows/
+            echo "devices:"; ls devices/
+            echo "scripts:"; ls scripts/
+          } > logs/validate-summary.txt
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validate-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 14
+          if-no-files-found: warn
