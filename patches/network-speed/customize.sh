@@ -1,3 +1,4 @@
+#!/bin/sh
 # This module needs no customize.sh logic.
 #
 # Upstream apply_modules.sh (scripts/internal/apply_modules.sh in
