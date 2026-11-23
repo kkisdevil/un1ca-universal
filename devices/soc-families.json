@@ -1,0 +1,129 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "families": {
+        "exynos2100": {
+            "devices": [
+                "o1s",
+                "p3s",
+                "r9s",
+                "t2s"
+            ],
+            "note": "Galaxy S21 family (Exynos). platform/exynos2100/ exists in all three repos.",
+            "platform_dir": true,
+            "primary_upstream": {
+                "branch": "sixteen",
+                "repo": "salvogiangri/UN1CA",
+                "unica_version": "3.2.1"
+            },
+            "source_firmware": null,
+            "source_firmware_note": "Read from unica/configs/qssi.sh (or essi.sh) of salvogiangri/UN1CA@sixteen before using this family in a build.",
+            "status": "listed"
+        },
+        "s5e8825": {
+            "devices": [
+                "a53x"
+            ],
+            "note": "Galaxy A53 5G, Exynos 1280. Family inferred from the device (no TARGET_PLATFORM line in target/a53x/config.sh); there is no platform/s5e8825/ directory in any repo. Treat as unconfirmed until a build reads the real config.",
+            "platform_dir": false,
+            "primary_upstream": {
+                "branch": "sixteen",
+                "repo": "salvogiangri/UN1CA",
+                "unica_version": "3.2.1"
+            },
+            "source_firmware": null,
+            "source_firmware_note": "Read from unica/configs/qssi.sh (or essi.sh) of salvogiangri/UN1CA@sixteen before using this family in a build.",
+            "status": "listed"
+        },
+        "sm7125": {
+            "devices": [
+                "a52q",
+                "a72q"
+            ],
+            "note": "Galaxy A52 / A72. platform/sm7125/ exists in all three repos.",
+            "platform_dir": true,
+            "primary_upstream": {
+                "branch": "sixteen",
+                "repo": "salvogiangri/UN1CA",
+                "unica_version": "3.2.1"
+            },
+            "source_firmware": null,
+            "source_firmware_note": "Read from unica/configs/qssi.sh (or essi.sh) of salvogiangri/UN1CA@sixteen before using this family in a build.",
+            "status": "listed"
+        },
+        "sm7150": {
+            "alternative_upstream": {
+                "branch": "sixteen",
+                "repo": "mehedihjoy0/UN1CA-SM7150",
+                "unica_version": "3.2.1"
+            },
+            "devices": [
+                "a71",
+                "m51"
+            ],
+            "note": "Snapdragon 730/730G family. No TARGET_PLATFORM line in target/m51/config.sh or target/a71/config.sh, and no platform/sm7150/ directory in any repo \u2014 the family identity is carried by the DVFS/SSRM filenames (dvfs_policy_sm7150_xx, siop_m51_sm7150). Do not invent TARGET_PLATFORM=\"sm7150\". Builds use unica/ + target/<codename>/ only.",
+            "platform_dir": false,
+            "primary_upstream": {
+                "branch": "seventeen",
+                "repo": "Arnav3078/UN1CA-SM7150",
+                "unica_version": "5.4.0"
+            },
+            "source_firmware": "SM-S911B/INS/352404911234563",
+            "source_firmware_note": "Galaxy S23 (One UI 9.0), from unica/configs/qssi.sh of Arnav3078/UN1CA-SM7150@seventeen. The sixteen alternative uses the older source firmware of its own branch \u2014 read it from that branch before building with it.",
+            "status": "mapped"
+        },
+        "sm7325": {
+            "devices": [
+                "a52sxq",
+                "a73xq",
+                "m52xq"
+            ],
+            "note": "Galaxy A52s 5G / A73 5G / M52 5G. platform/sm7325/ exists in all three repos.",
+            "platform_dir": true,
+            "primary_upstream": {
+                "branch": "sixteen",
+                "repo": "salvogiangri/UN1CA",
+                "unica_version": "3.2.1"
+            },
+            "source_firmware": null,
+            "source_firmware_note": "Read from unica/configs/qssi.sh (or essi.sh) of salvogiangri/UN1CA@sixteen before using this family in a build.",
+            "status": "listed"
+        },
+        "sm8250": {
+            "devices": [
+                "r8q"
+            ],
+            "note": "Galaxy S20 FE (Snapdragon). Family inferred from DVFS filenames (sdm8250 / sm8250); there is no platform/sm8250/ directory in any repo. Treat as unconfirmed until a build reads the real config.",
+            "platform_dir": false,
+            "primary_upstream": {
+                "branch": "sixteen",
+                "repo": "salvogiangri/UN1CA",
+                "unica_version": "3.2.1"
+            },
+            "source_firmware": null,
+            "source_firmware_note": "Read from unica/configs/qssi.sh (or essi.sh) of salvogiangri/UN1CA@sixteen before using this family in a build.",
+            "status": "listed"
+        },
+        "sm8450": {
+            "devices": [
+                "b0q",
+                "g0q",
+                "r0q"
+            ],
+            "note": "Galaxy S22 family (Snapdragon). platform/sm8450/ exists in all three repos.",
+            "platform_dir": true,
+            "primary_upstream": {
+                "branch": "sixteen",
+                "repo": "salvogiangri/UN1CA",
+                "unica_version": "3.2.1"
+            },
+            "source_firmware": null,
+            "source_firmware_note": "Read from unica/configs/qssi.sh (or essi.sh) of salvogiangri/UN1CA@sixteen before using this family in a build.",
+            "status": "listed"
+        }
+    },
+    "note": "The universal porter's SoC-family manifest. The build workflow does NOT hard-code which upstream fork/branch to use for a device: scripts/resolve-device.py reads the device's JSON, finds its SoC family here, and the workflow builds from that family's primary upstream. A family is 'mapped' only when its primary upstream was read from the real repos; 'listed' families have their codename-to-family mapping verified from the target/ table in research/02-targets-sm7150.md, but their family defaults have not been used in a build yet. Do not invent firmware strings: where a family's source firmware was not read, it is null with a note saying where to read it from.",
+    "provenance": {
+        "checked": "2026-11-23",
+        "source": "research/02-targets-sm7150.md (GitHub Contents API + raw.githubusercontent.com, all three repos)"
+    }
+}

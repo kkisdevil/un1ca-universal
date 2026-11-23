@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "alternative_source": {
+    "notes": "Same target/ list (16 codenames, including m51). Its m51/config.sh differs from Arnav's \u2014 see mehedi_differences below. Use only as an alternative input to the build workflow, not as the default.",
+    "source_branch": "sixteen",
+    "source_repo": "mehedihjoy0/UN1CA-SM7150"
+  },
+  "base_firmware": "SM-M515F/BVO/357563172596302",
+  "bootloader": {
+    "assertion": "target/m51/installer/assertions.edify requires bootloader M515FXXS6DXE3 and rejects ro.boot.rp == \"6\"",
+    "required": "M515FXXS6DXE3"
+  },
+  "build_notes": [
+    "Full build downloads the source firmware (Galaxy S23, SM-S911B/INS), the target firmware (Galaxy M51, SM-M515F/BVO) and the extra firmware (Galaxy S21 FE, SM-G990B/EUX) via samloader in scripts/download_fw.sh \u2014 multi-GB, see .github/workflows/build.yml runner-limit notes.",
+    "Full build requires PLATFORM_KEY_PK8 and PLATFORM_KEY_PEM repository secrets (base64), decoded by the workflow into security/unica_platform.pk8 and security/unica_platform.x509.pem, exactly as upstream CI does. Dry-run mode does not need them.",
+    "Build command in the upstream tree is: source ./buildenv.sh m51 && ./scripts/build_dependencies.sh && ./scripts/download_fw.sh && ./scripts/extract_fw.sh && ./scripts/make_rom.sh --build-rom-zip"
+  ],
+  "codename": "m51",
+  "csc": {
+    "csc": "BVO",
+    "note": "CSC is the region/carrier code in the firmware string. A wrong CSC means the wrong stock firmware is downloaded and the build targets the wrong variant. Extra firmware CSC is EUX (SM-G990B/EUX/...).",
+    "source": "Second field of TARGET_FIRMWARE (SM-M515F/BVO/...)"
+  },
+  "display": {
+    "auto_brightness": "3",
+    "color_weakness_solution": "3",
+    "hfr_default_refresh_rate": "60",
+    "hfr_mode": "0",
+    "mdnie_hw": true,
+    "mdnie_mode": "62481"
+  },
+  "dvfs": {
+    "policy_filename": "dvfs_policy_sm7150_xx",
+    "siop_model_file": "target/m51/dvfs/siop_model.xml",
+    "ssrm_policy_filename": "siop_m51_sm7150"
+  },
+  "fingerprint": {
+    "note": "Mehedi ships patches/sidefp/ (smali patch 0001-Hardcode-fingerprint-sensor-position-value.patch on services.jar). Arnav has no sidefp patch in its tree \u2014 verify fingerprint behaviour separately on seventeen.",
+    "sensor": "google_touch_side,settings=3,navi=1",
+    "type": "side-mounted"
+  },
+  "firmware_files": {
+    "in_repo": false,
+    "note": "The modified firmware files are not in the UN1CA repo.",
+    "source": "target/m51/installer/customize.sh clones https://github.com/mehedihjoy0/M51-FIRMWARES at build/install time (mehedi: straight into $TMP_DIR; arnav: cached under out/cache/M51-FIRMWARES, re-cloned only if vbmeta.img is missing; arnav deletes any packaged recovery.img and patches vbmeta.img byte 123 to 0x03, AVB disabled)"
+  },
+  "kernel": {
+    "in_repo": false,
+    "note": "No kernel is stored in the UN1CA repo. A build needs network access to the kernel release, or a pre-downloaded kernel zip.",
+    "source_arnav": "Not read in full in this research \u2014 do not assume it matches mehedi",
+    "source_mehedi": "patches/kernel/customize.sh downloads the latest m51-ksu*.zip (LostPrime kernel) from kurtnettle/android_kernel_samsung_sm7150 GitHub releases at build time, then replaces the kernel/DTB in the stock boot.img"
+  },
+  "mehedi_differences": {
+    "note": "Mehedi sixteen and Arnav seventeen share the same TARGET_NAME, CODENAME, ASSERT_MODEL, TARGET_FIRMWARE, EXTRA_FIRMWARES, partitions, DVFS/SSRM filenames and fingerprint sensor. Differences are SDK 31 vs 33, erofs vs unset, HDR true vs false, RIL empty vs 'onebinary embms_qc', Bluetooth A2DP sink false vs true, and ESE NXP/JCOP4.0 absent in mehedi vs present in arnav. Field order in the files differs; order does not matter, values do.",
+    "target_bluetooth_support_a2dpsink_profile": false,
+    "target_common_support_hdr_effect": true,
+    "target_os_file_system_type": "erofs",
+    "target_platform_sdk_version": 31,
+    "target_ril_features": ""
+  },
+  "model": "SM-M515F",
+  "model_name": "Galaxy M51",
+  "patches": {
+    "arnav_seventeen": [
+      "_vintf",
+      "audio",
+      "blobs",
+      "camera",
+      "display",
+      "dvfs",
+      "edge_lighting",
+      "emulated_storage",
+      "fbe",
+      "fcm",
+      "kernel",
+      "keymaster",
+      "miscs",
+      "ril",
+      "selinux",
+      "stock_props",
+      "tweaks",
+      "vibrator"
+    ],
+    "mehedi_sixteen": [
+      "_vintf",
+      "audio",
+      "biometrics",
+      "camera",
+      "dvfs",
+      "edge_lighting",
+      "fcm",
+      "fmradio",
+      "hotword",
+      "hwui",
+      "kernel",
+      "keymaster",
+      "netflix",
+      "ril",
+      "screenlock",
+      "selinux",
+      "sidefp",
+      "tweaks",
+      "vibrator",
+      "wfd"
+    ],
+    "note": "Each patch is a module under target/m51/patches/<name>/ with module.prop + customize.sh. Arnav tweaks/ also ships patch_camera.py, patch_composer.py, patch_iccc.py, patch_keystoreutils.py, patch_libmeminfo.py. Patch lists differ between forks \u2014 do not copy one fork's list onto the other."
+  },
+  "provenance": {
+    "buildenv": "https://raw.githubusercontent.com/Arnav3078/UN1CA-SM7150/seventeen/buildenv.sh",
+    "checked": "2026-11-23",
+    "note": "All firmware strings and partition sizes above are copied verbatim from those files. No firmware version was invented.",
+    "source_config": "https://raw.githubusercontent.com/Arnav3078/UN1CA-SM7150/seventeen/unica/configs/qssi.sh",
+    "target_config": "https://raw.githubusercontent.com/Arnav3078/UN1CA-SM7150/seventeen/target/m51/config.sh",
+    "version_file": "https://raw.githubusercontent.com/Arnav3078/UN1CA-SM7150/seventeen/unica/configs/version.sh"
+  },
+  "research": "research/02-targets-sm7150.md",
+  "ril": {
+    "features_arnav": "onebinary embms_qc",
+    "features_mehedi": "",
+    "note": "Vendored in patches/ril/vendor/ in both forks. Device-specific \u2014 a71's ril/ vendors only 3 of these libraries. Do not reuse another device's RIL blobs.",
+    "patch_dir": "target/m51/patches/ril/",
+    "sim_tray_count": "1",
+    "vendor_files_required": [
+      "vendor/bin/hw/rild",
+      "vendor/etc/init/init.vendor.rilchip.rc",
+      "vendor/etc/init/init.vendor.rilcommon.rc"
+    ],
+    "vendor_libs_required": [
+      "vendor/lib64/libSemDataProps.so",
+      "vendor/lib64/libSemTelephonyProps.so",
+      "vendor/lib64/libqmiservices-ext.so",
+      "vendor/lib64/libqmiservices.so",
+      "vendor/lib64/libril_sem.so",
+      "vendor/lib64/libsec-ril.so",
+      "vendor/lib64/libsecril-client.so",
+      "vendor/lib64/libsemnativecarrierfeature.so"
+    ]
+  },
+  "soc": "SM7150 (Snapdragon 732G / 730G family)",
+  "soc_detail": {
+    "family": "sm7150",
+    "name": "Qualcomm Snapdragon 730G",
+    "note": "No TARGET_PLATFORM line in either fork's target/m51/config.sh, and there is no platform/sm7150/ directory in any of the three repos. The sm7150 identity is carried by dvfs_policy_sm7150_xx / siop_m51_sm7150 and by the debloat.sh / sff.sh headers. Do not invent TARGET_PLATFORM=\"sm7150\"."
+  },
+  "source_board_api_level": 33,
+  "source_branch": "seventeen",
+  "source_device": "Galaxy S23 (SM-S911B, One UI 9.0)",
+  "source_firmware": "SM-S911B/INS/352404911234563",
+  "source_platform_sdk_version": 37,
+  "source_product_shipping_api_level": 33,
+  "source_repo": "Arnav3078/UN1CA-SM7150",
+  "status": {
+    "built_in_this_research": false,
+    "note": "Read-only research. No build was run. Validate this file against the upstream target/m51/ files before building \u2014 see devices/README.md for the modify-and-fix loop.",
+    "researched": "2026-11-23",
+    "tested": false
+  },
+  "target_board_api_level": 30,
+  "target_boot_partition_size": 67108864,
+  "target_cache_partition_size": 419430400,
+  "target_disable_avb_signing": true,
+  "target_dtbo_partition_size": 10485760,
+  "target_extra_firmwares": [
+    "SM-G990B/EUX/353718681234563"
+  ],
+  "target_files": [
+    "config.sh",
+    "debloat.sh",
+    "sff.sh",
+    "camera/",
+    "dvfs/",
+    "installer/",
+    "overlay/",
+    "patches/"
+  ],
+  "target_firmware": "SM-M515F/BVO/357563172596302",
+  "target_name": "Galaxy M51",
+  "target_os_build_system_ext_partition": false,
+  "target_os_single_system_image": "qssi",
+  "target_platform_sdk_version": 33,
+  "target_product_shipping_api_level": 29,
+  "target_qti_dynamic_partitions_size": 8048869376,
+  "target_super_group_name": "qti_dynamic_partitions",
+  "target_super_partition_size": 8053063680,
+  "target_use_dynamic_partitions": true,
+  "unica_version": "5.4.0",
+  "upstream": [
+    {
+      "branch": "sixteen",
+      "paths_under_target_m51": 106,
+      "platform_sdk_version": 31,
+      "repo": "mehedihjoy0/UN1CA-SM7150",
+      "target_path": "target/m51/",
+      "unica_version": "3.2.1",
+      "url": "https://github.com/mehedihjoy0/UN1CA-SM7150"
+    },
+    {
+      "branch": "seventeen",
+      "note": "Primary source for this file (see provenance). Described as UN1CA 5.x One UI 9 / 9.5 for M51.",
+      "paths_under_target_m51": 105,
+      "platform_sdk_version": 33,
+      "repo": "Arnav3078/UN1CA-SM7150",
+      "target_path": "target/m51/",
+      "unica_version": "5.4.0",
+      "url": "https://github.com/Arnav3078/UN1CA-SM7150"
+    }
+  ],
+  "upstream_base": {
+    "notes": "Base UN1CA has 15 targets and does NOT include m51. The SM7150 forks add m51.",
+    "source_branch": "sixteen",
+    "source_repo": "salvogiangri/UN1CA"
+  }
+}

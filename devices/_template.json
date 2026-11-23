@@ -1,0 +1,154 @@
+{
+  "_how_to_use": {
+    "1": "Copy this file to devices/<codename>.json (lowercase codename, e.g. devices/a71.json). Do not edit _template.json itself.",
+    "2": "Fill every CHANGEME value from the real target/<codename>/config.sh in the upstream repo \u2014 copy firmware strings, partition sizes and DVFS filenames verbatim. Never invent them.",
+    "3": "Delete any field that does not apply to the device (e.g. extra_firmwares if TARGET_EXTRA_FIRMWARES is empty), rather than leaving a CHANGEME in it.",
+    "4": "Validate with: python3 -m json.tool devices/<codename>.json (must parse) and re-check every value against the upstream target/<codename>/ files. See devices/README.md for the modify-and-fix loop.",
+    "5": "Upstream for a new device is usually the closest sibling with the same SoC already in base or in a fork \u2014 for sm7150, use a71 (base) / m51 (forks) as the template."
+  },
+  "assert_model": [
+    "CHANGEME \u2014 e.g. SM-M515F \u2014 from TARGET_ASSERT_MODEL in config.sh, if present"
+  ],
+  "base_firmware": "CHANGEME \u2014 TARGET_FIRMWARE verbatim, format MODEL/CSC/<digits>, e.g. SM-M515F/BVO/357563172596302",
+  "base_upstream": {
+    "branch": "CHANGEME \u2014 e.g. sixteen",
+    "note": "CHANGEME \u2014 does base already have this codename, or only a fork? Which device was it modelled on?",
+    "repo": "CHANGEME \u2014 e.g. salvogiangri/UN1CA",
+    "url": "CHANGEME \u2014 https://github.com/<owner>/<repo>"
+  },
+  "blobs": {
+    "note": "List every vendored blob the target's patches/ directory actually ships. Do not list blobs from another device.",
+    "ril": "CHANGEME \u2014 see ril.vendor_libs_required",
+    "wpss_firmware": "CHANGEME \u2014 only if the target has a patches/wpss/ directory; otherwise delete this key"
+  },
+  "board_api_level": 0,
+  "bootloader": {
+    "assertion": "CHANGEME \u2014 from target/<codename>/installer/assertions.edify, if present",
+    "required": "CHANGEME \u2014 bootloader version the assertions require, e.g. M515FXXS6DXE3"
+  },
+  "camera": {
+    "camerax_extension": false,
+    "cutout_protection": false,
+    "feature_file": "CHANGEME \u2014 target/<codename>/camera/camera-feature.xml",
+    "mass_app_flavor": true,
+    "sdk_service": false
+  },
+  "codename": "CHANGEME \u2014 lowercase, e.g. m51. Must match the target/<codename>/ directory name exactly. buildenv.sh discovers targets by directory name.",
+  "csc": {
+    "csc": "CHANGEME \u2014 second field of TARGET_FIRMWARE, e.g. BVO",
+    "note": "CSC is the region/carrier code in the firmware string. A wrong CSC means the wrong stock firmware is downloaded and the build targets the wrong variant.",
+    "source": "Second field of TARGET_FIRMWARE (MODEL/CSC/...)"
+  },
+  "debloat": {
+    "note": "CHANGEME \u2014 summarise target/<codename>/debloat.sh, or delete this key if the target has no debloat.sh (e.g. base a52q has none)."
+  },
+  "display": {
+    "auto_brightness": "CHANGEME",
+    "color_weakness_solution": "CHANGEME",
+    "hfr_default_refresh_rate": "CHANGEME",
+    "hfr_mode": "CHANGEME",
+    "mdnie_hw": true,
+    "mdnie_mode": "CHANGEME \u2014 TARGET_COMMON_CONFIG_MDNIE_MODE"
+  },
+  "dvfs": {
+    "policy_filename": "CHANGEME \u2014 TARGET_DVFSAPP_CONFIG_DVFS_POLICY_FILENAME, e.g. dvfs_policy_sm7150_xx",
+    "siop_model_file": "CHANGEME \u2014 target/<codename>/dvfs/siop_model.xml",
+    "ssrm_policy_filename": "CHANGEME \u2014 TARGET_DVFSAPP_CONFIG_SSRM_POLICY_FILENAME, e.g. siop_m51_sm7150"
+  },
+  "extra_firmwares": [
+    "CHANGEME \u2014 TARGET_EXTRA_FIRMWARES verbatim, or [] if empty"
+  ],
+  "extra_firmwares_note": "CHANGEME \u2014 if extra firmwares are declared, say whether you traced which blobs come from them. If not traced, say so explicitly. Do not assume.",
+  "fingerprint": {
+    "note": "CHANGEME \u2014 side / in-display optical / ultrasonic, and which patches/ entry handles it (e.g. sidefp smali patch), if any.",
+    "sensor": "CHANGEME \u2014 TARGET_FINGERPRINT_CONFIG_SENSOR verbatim",
+    "type": "CHANGEME \u2014 side-mounted / in-display optical / ultrasonic"
+  },
+  "firmware_files": {
+    "in_repo": false,
+    "note": "CHANGEME \u2014 are the modified firmware files in the UN1CA repo, or downloaded at build/install time? Give the repo/URL if external.",
+    "source": "CHANGEME \u2014 target/<codename>/installer/customize.sh, if it downloads firmware"
+  },
+  "floating_features": {
+    "note": "CHANGEME \u2014 summarise target/<codename>/sff.sh (SEC_FLOATING_FEATURE_* flags)."
+  },
+  "kernel": {
+    "in_repo": false,
+    "note": "CHANGEME \u2014 is a kernel stored in the UN1CA repo, or downloaded at build time? Give the repo/URL and asset pattern if external.",
+    "source": "CHANGEME \u2014 target/<codename>/patches/kernel/customize.sh, if present"
+  },
+  "model": "CHANGEME \u2014 model number, e.g. SM-M515F",
+  "model_name": "CHANGEME \u2014 TARGET_NAME, e.g. Galaxy M51",
+  "os": {
+    "build_system_ext_partition": false,
+    "disable_avb_signing": true,
+    "file_system_type": "CHANGEME \u2014 TARGET_OS_FILE_SYSTEM_TYPE if set, otherwise delete this key",
+    "single_system_image": "CHANGEME \u2014 qssi or essi"
+  },
+  "overlay": [
+    "CHANGEME \u2014 list the files under target/<codename>/overlay/, e.g. target/<codename>/overlay/values/strings.xml"
+  ],
+  "partitions": {
+    "boot_partition_size": 0,
+    "cache_partition_size": 0,
+    "dtbo_partition_size": 0,
+    "qti_dynamic_partitions_size": 0,
+    "super_group_name": "CHANGEME",
+    "super_partition_size": 0,
+    "use_dynamic_partitions": true
+  },
+  "patches": {
+    "note": "CHANGEME \u2014 list the directories under target/<codename>/patches/ for the branch you are using. Patch lists differ between branches \u2014 do not copy one branch's list onto another."
+  },
+  "ril": {
+    "features": "CHANGEME \u2014 TARGET_RIL_FEATURES verbatim (may be empty)",
+    "note": "CHANGEME \u2014 RIL blobs are device-specific. Do not reuse another device's RIL blobs.",
+    "patch_dir": "CHANGEME \u2014 target/<codename>/patches/ril/",
+    "sim_tray_count": "CHANGEME",
+    "vendor_files_required": [
+      "CHANGEME \u2014 files under patches/ril/vendor/, e.g. vendor/bin/hw/rild"
+    ],
+    "vendor_libs_required": [
+      "CHANGEME \u2014 .so files under patches/ril/vendor/lib64/"
+    ]
+  },
+  "shipping_api_level": 0,
+  "soc": {
+    "family": "CHANGEME \u2014 e.g. sm7150",
+    "name": "CHANGEME \u2014 e.g. Qualcomm Snapdragon 730G",
+    "note": "CHANGEME \u2014 if config.sh has no TARGET_PLATFORM line, say so here and say how the SoC is identified instead (DVFS/SSRM filenames, debloat/sff headers). Do not invent a TARGET_PLATFORM value."
+  },
+  "soc_detail": {
+    "family": "CHANGEME \u2014 same as soc.family",
+    "name": "CHANGEME \u2014 same as soc.name",
+    "note": "CHANGEME \u2014 same note as soc.note"
+  },
+  "source_branch": "CHANGEME \u2014 primary upstream branch, e.g. seventeen",
+  "source_firmware": "CHANGEME \u2014 source firmware from unica/configs/qssi.sh (or essi.sh), format MODEL/CSC/<digits>, e.g. SM-S911B/INS/352404911234563",
+  "source_platform_sdk_version": "CHANGEME \u2014 from unica/configs/qssi.sh, e.g. 37 (integer)",
+  "source_repo": "CHANGEME \u2014 primary upstream repo, e.g. Arnav3078/UN1CA-SM7150",
+  "sources": [
+    "CHANGEME \u2014 https://github.com/<owner>/<repo>/tree/<branch>/target/<codename>"
+  ],
+  "status": {
+    "built_in_this_research": false,
+    "note": "CHANGEME \u2014 set built/tested only after a real validate/build run. Until then, tested=false.",
+    "researched": "CHANGEME \u2014 YYYY-MM-DD",
+    "tested": false
+  },
+  "target_firmware": "CHANGEME \u2014 same as base_firmware",
+  "target_name": "CHANGEME \u2014 same as model_name",
+  "target_platform_sdk_version": "CHANGEME \u2014 TARGET_PLATFORM_SDK_VERSION from target/<codename>/config.sh (integer)",
+  "upstream": [
+    {
+      "branch": "CHANGEME",
+      "notes": "CHANGEME",
+      "paths_under_target": 0,
+      "platform_sdk_version": 0,
+      "repo": "CHANGEME",
+      "target_path": "CHANGEME \u2014 target/<codename>/",
+      "unica_version": "CHANGEME \u2014 from unica/configs/version.sh",
+      "url": "CHANGEME"
+    }
+  ]
+}
