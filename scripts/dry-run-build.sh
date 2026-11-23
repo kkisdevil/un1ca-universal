@@ -90,8 +90,13 @@ echo "-- source buildenv.sh $CODENAME --"
 # buildenv.sh prints the generated config; capture it for the log.
 # It must exit 0 — gen_config_file.sh fails if TARGET_OS_SINGLE_SYSTEM_IMAGE
 # is unset or its config file is missing, and buildenv.sh returns 1 then.
+# NOTE: buildenv.sh reads $SRC_DIR before setting it (its _GET_SRC_DIR
+# checks `[ -n "$SRC_DIR" ]`), which fails with "unbound variable" under
+# this script's `set -u`. Source it in a subshell with `set +u`; the
+# generated out/config.sh is read from disk afterwards, so losing the
+# sourced environment does not matter.
 # shellcheck disable=SC1091
-if ! source ./buildenv.sh "$CODENAME" > "$WORK/buildenv.log" 2>&1; then
+if ! (set +u; source ./buildenv.sh "$CODENAME" > "$WORK/buildenv.log" 2>&1); then
     echo "ERROR: buildenv.sh $CODENAME failed — see log below" >&2
     cat "$WORK/buildenv.log" >&2
     if [ -n "${DRY_RUN_LOG_DIR:-}" ]; then
