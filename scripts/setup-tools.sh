@@ -27,12 +27,12 @@
 #   scripts/setup-tools.sh [--check-only] [--with-linux-modules-extra]
 #   --check-only  verify the required commands exist, install nothing.
 #                 Exit 0 only if every required tool is present.
-#   PLATFORM_KEY_PK8 / PLATFORM_KEY_PEM (base64, optional in dry-run):
+#   PLATFORM_KEY_PK8 / PLATFORM_KEY_PEM (base64, optional):
 #   if both are set in the environment, they are decoded to
 #   security/unica_platform.pk8 and security/unica_platform.x509.pem
 #   in the upstream checkout, exactly as upstream CI does.
-#   If they are absent, this script warns and continues — a full build
-#   will fail later at signing, a dry-run will not.
+#   If they are absent, a throwaway TEST keypair is generated instead
+#   (test builds only, never for release) so the full build can sign.
 set -euo pipefail
 
 CHECK_ONLY=false
@@ -108,9 +108,30 @@ if [ -n "${PLATFORM_KEY_PK8:-}" ] && [ -n "${PLATFORM_KEY_PEM:-}" ]; then
     echo -n "$PLATFORM_KEY_PEM" | base64 --decode > security/unica_platform.x509.pem
     chmod 600 security/unica_platform.pk8 security/unica_platform.x509.pem
 else
-    echo "WARNING: PLATFORM_KEY_PK8 / PLATFORM_KEY_PEM not set —" \
-        "full build will fail at signing; dry-run continues." >&2
+    # No signing secrets: generate a THROWAWAY test keypair so the
+    # full build can sign at all. These keys are generated fresh on
+    # every run and are NOT release keys — a ROM signed with them is
+    # for testing only. If real secrets are ever added to the repo,
+    # the branch above takes precedence and no test keys are made.
+    # (Build ROM #2, 2026-11-24 01:17 IST, would have failed at
+    # signing for this reason after the permission fix.)
+    if command -v openssl >/dev/null 2>&1; then
+        echo "WARNING: PLATFORM_KEY_PK8 / PLATFORM_KEY_PEM not set — generating throwaway TEST signing keys (test builds only, never for release)." >&2
+        mkdir -p security
+        openssl genrsa -out security/unica_platform_tmp.pem 2048 2>/dev/null
+        openssl req -new -x509 -key security/unica_platform_tmp.pem -out security/unica_platform.x509.pem -days 10000 -subj "/C=US/ST=California/L=Mountain View/O=Android/OU=Android/CN=Android/emailAddress=android@android.com" 2>/dev/null
+        openssl pkcs8 -topk8 -outform DER -in security/unica_platform_tmp.pem -out security/unica_platform.pk8 -nocrypt 2>/dev/null
+        rm -f security/unica_platform_tmp.pem
+        chmod 600 security/unica_platform.pk8 security/unica_platform.x509.pem
+        echo "Test signing keys generated in security/ (throwaway, per-run)." >&2
+    else
+        echo "WARNING: PLATFORM_KEY_PK8 / PLATFORM_KEY_PEM not set and openssl is missing — full build will fail at signing; dry-run continues." >&2
+    fi
 fi
 
 echo "Setup complete. Re-checking tools:"
-"$0" --check-only
+# NOTE: invoke via bash, never "$0" directly — files uploaded through
+# the GitHub web UI have mode 100644 (no +x), so executing the script
+# itself fails with "Permission denied" (exit 126). That killed
+# Build ROM #2 (2026-11-24 01:17 IST) at this exact line.
+bash "$0" --check-only
