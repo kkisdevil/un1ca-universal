@@ -64,8 +64,22 @@ git clone --filter=blob:none --depth 1 --branch "$SOURCE_BRANCH" \
     || { echo "ERROR: clone failed — repo/branch not reachable: $SOURCE_REPO@$SOURCE_BRANCH" >&2; exit 1; }
 
 cd "$WORK/tree"
-git sparse-checkout set buildenv.sh scripts unica/configs "target/$CODENAME" platform \
-    || { echo "ERROR: sparse-checkout failed — target/$CODENAME missing in $SOURCE_REPO@$SOURCE_BRANCH" >&2; exit 1; }
+# NOTE: cone-mode sparse-checkout only accepts directories, and
+# buildenv.sh is a FILE at the repo root — `git sparse-checkout set
+# buildenv.sh ...` fails with "fatal: 'buildenv.sh' is not a directory".
+# Use --no-cone so file patterns are accepted.
+git sparse-checkout set --no-cone \
+    '/buildenv.sh' \
+    '/scripts/*' \
+    '/unica/configs/*' \
+    "/target/$CODENAME/*" \
+    '/platform/*' \
+    || { echo "ERROR: sparse-checkout failed — could not check out buildenv.sh/scripts/target/$CODENAME in $SOURCE_REPO@$SOURCE_BRANCH" >&2; exit 1; }
+
+if [ ! -f buildenv.sh ]; then
+    echo "ERROR: buildenv.sh not checked out in $SOURCE_REPO@$SOURCE_BRANCH" >&2
+    exit 1
+fi
 
 if [ ! -f "target/$CODENAME/config.sh" ]; then
     echo "ERROR: target/$CODENAME/config.sh not found in $SOURCE_REPO@$SOURCE_BRANCH" >&2
