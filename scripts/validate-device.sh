@@ -10,6 +10,18 @@
 #                     verify source_repo/source_branch exist and that
 #                     target/<codename>/ exists in that branch.
 #                     Needs network; skipped by default.
+#                     When GH_TOKEN or GITHUB_TOKEN is set (GitHub Actions
+#                     provides it), the API calls are authenticated, which
+#                     raises the limit from 60/hr per IP to 1000/hr.
+#                     A persistent 403/429 (rate limit) is NOT a validation
+#                     failure: it only warns and skips the upstream check,
+#                     because the branch/target were verified when the
+#                     device file was written and the build itself will
+#                     fail loudly if the branch really does not exist.
+#                     Only a 404 fails the check.
+#                     (Build ROM #1, 2026-11-24 00:31 IST, failed in 45s:
+#                     unauthenticated API returned 403 three times and the
+#                     old code treated it as a hard failure.)
 #
 # Checks (no network unless --check-upstream):
 #   - file exists and is valid JSON (python3 -m json.tool, or jq)
@@ -136,10 +148,20 @@ if $CHECK_UPSTREAM; then
     # a transient GitHub API 504 as a missing branch. Transient
     # failures (network error, HTTP 5xx, rate-limit 403/429) are
     # retried 3 times; only a 404 means "not found".
+    # Authenticate when a token is available (GitHub Actions provides
+    # GH_TOKEN / GITHUB_TOKEN). Unauthenticated calls share the 60/hr
+    # per-IP limit and get HTTP 403 on busy runners — that is a rate
+    # limit, not a missing branch, so it must never fail the build.
+    AUTH_ARGS=()
+    if [ -n "${GH_TOKEN:-}" ]; then
+        AUTH_ARGS=(-H "Authorization: Bearer $GH_TOKEN")
+    elif [ -n "${GITHUB_TOKEN:-}" ]; then
+        AUTH_ARGS=(-H "Authorization: Bearer $GITHUB_TOKEN")
+    fi
     github_api_code() {
         local url="$1" attempt=1 code="000"
         while [ "$attempt" -le 3 ]; do
-            code="$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$url" 2>/dev/null)" || code="000"
+            code="$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${AUTH_ARGS[@]}" "$url" 2>/dev/null)" || code="000"
             case "$code" in
                 200|404) echo "$code"; return 0 ;;
                 *) echo "Attempt $attempt: $url -> HTTP $code, retrying..." >&2
@@ -149,19 +171,22 @@ if $CHECK_UPSTREAM; then
         echo "$code"
     }
     echo "Checking upstream $REPO@$BRANCH ..."
+    SKIP_UPSTREAM=""
     CODE="$(github_api_code "https://api.github.com/repos/$REPO/branches/$BRANCH")"
     case "$CODE" in
         200) ;;
         404) echo "Upstream branch not found: $REPO@$BRANCH" >&2; exit 1 ;;
-        *) echo "Upstream check unavailable after retries (HTTP $CODE) — GitHub API error, not a missing branch; re-run later" >&2; exit 1 ;;
+        *) echo "WARNING: upstream branch check inconclusive (HTTP $CODE — GitHub API rate limit / transient error); skipping upstream verification — the build will fail later if the branch really does not exist" >&2; SKIP_UPSTREAM=1 ;;
     esac
-    CODE="$(github_api_code "https://api.github.com/repos/$REPO/contents/target/$CODENAME?ref=$BRANCH")"
-    case "$CODE" in
-        200) ;;
-        404) echo "Upstream target not found: $REPO target/$CODENAME@$BRANCH" >&2; exit 1 ;;
-        *) echo "Upstream check unavailable after retries (HTTP $CODE) — GitHub API error, not a missing target; re-run later" >&2; exit 1 ;;
-    esac
-    echo "Upstream OK: $REPO@$BRANCH target/$CODENAME exists"
+    if [ -z "$SKIP_UPSTREAM" ]; then
+        CODE="$(github_api_code "https://api.github.com/repos/$REPO/contents/target/$CODENAME?ref=$BRANCH")"
+        case "$CODE" in
+            200) ;;
+            404) echo "Upstream target not found: $REPO target/$CODENAME@$BRANCH" >&2; exit 1 ;;
+            *) echo "WARNING: upstream target check inconclusive (HTTP $CODE); skipping upstream verification" >&2; SKIP_UPSTREAM=1 ;;
+        esac
+    fi
+    [ -z "$SKIP_UPSTREAM" ] && echo "Upstream OK: $REPO@$BRANCH target/$CODENAME exists"
 fi
 
 echo "OK: $FILE (codename $CODENAME, model $(get model))"
