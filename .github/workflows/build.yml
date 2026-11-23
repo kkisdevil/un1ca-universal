@@ -192,6 +192,13 @@ jobs:
       - name: Checkout un1ca-universal
         uses: actions/checkout@v7
 
+      # Files uploaded through the GitHub web UI have mode 100644 (no
+      # +x). Our scripts are always invoked via bash, but make them
+      # executable anyway so no step can trip over the missing bit
+      # (Build ROM #2 died on exactly that in setup-tools.sh).
+      - name: Make porter scripts executable
+        run: chmod +x "$GITHUB_WORKSPACE"/scripts/*.sh
+
       - name: Show resolved porter matrix
         run: |
           echo "Device:      $DEVICE"
@@ -217,10 +224,10 @@ jobs:
           PLATFORM_KEY_PK8: ${{ secrets.PLATFORM_KEY_PK8 }}
           PLATFORM_KEY_PEM: ${{ secrets.PLATFORM_KEY_PEM }}
         run: |
-          # setup-tools.sh installs the upstream apt list and, when the
-          # platform signing secrets are present, decodes them into
-          # security/unica_platform.pk8 / .x509.pem. Absent in dry-run:
-          # it warns and continues; a full build needs them.
+          # setup-tools.sh installs the upstream apt list and decodes the
+          # platform signing secrets into security/unica_platform.pk8 /
+          # .x509.pem when present; when absent it generates throwaway
+          # test keys so the full build can sign (test builds only).
           bash "$GITHUB_WORKSPACE/scripts/setup-tools.sh"
 
       - name: Set up JDK 17
