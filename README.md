@@ -26,6 +26,29 @@ This project aims to make UN1CA available for as many Samsung phones as possible
 - **Credits always:** everyone whose repo, tool, guide or info is used is credited in `CREDITS.md` and in the README. If you contributed and are missing, open an issue.
 - **Safety:** flashing a custom ROM can brick a device, trip Knox, and void warranty. Locked-bootloader models (notably some US Snapdragon models) cannot flash at all. Test only on a device you can afford to recover.
 
+## Universal porter — how the setup works
+
+The porter is the centre of this repo. It is a manifest + resolver, not a
+hard-coded device list:
+
+- `devices/<codename>.json` — one manifest per device (m51 first), copied
+  verbatim from the real upstream `target/<codename>/` files.
+- `devices/soc-families.json` — SoC family → primary upstream fork/branch.
+  sm7150 is mapped (a71, m51 → Arnav `seventeen`, Mehedi `sixteen` as the
+  alternative); sm7125, sm7325, sm8450, exynos2100, s5e8825, sm8250 are
+  listed with their codenames verified from the upstream `target/` table.
+- `scripts/resolve-device.py` — given a device, resolves it to
+  (SoC family, upstream repo, branch, UN1CA version). The build workflow's
+  `resolve` job runs it and the build checks out exactly that repo@branch.
+  Inputs default to `auto` (use the manifest); override them for one run.
+- `devices/_template.json` — copy it to add a device; fill every field
+  from the real upstream files, never from memory.
+
+Workflows: `.github/workflows/build.yml` (workflow_dispatch, dry-run
+default / full build, logs uploaded as artifacts, re-runnable) and
+`.github/workflows/validate.yml` (push/PR: shellcheck, YAML parse, device
+JSON validation, SoC-manifest + resolver check, upstream existence).
+
 ## How a port works (high level)
 
 1. Detect codename + SoC from the target device

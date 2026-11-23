@@ -1,0 +1,6 @@
+# Build/test artefacts — never commit these.
+__pycache__/
+*.pyc
+logs/
+out/
+upstream/
