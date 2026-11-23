@@ -171,6 +171,18 @@ jobs:
       DEVICE: ${{ inputs.device }}
       BUILD_TYPE: ${{ inputs.build_type }}
       BUILD_MODE: ${{ inputs.mode }}
+      # Build ROM #4 (2026-11-24) died in the upstream ParadigmKernel
+      # patch: target/m51/patches/kernel/customize.sh resolves the
+      # LostPrime kernel zip through the GitHub API and reads
+      # $GITHUB_TOKEN only — it never sees GH_TOKEN. The "Build ROM"
+      # step exported GH_TOKEN, so the call went unauthenticated, hit
+      # the 60/hr shared-runner-IP limit (the same 403 that killed
+      # Build ROM #1 in Validate), and KERNEL_URL came back empty:
+      # `DOWNLOAD_FILE: URL is not set!` 1h25m into the build.
+      # The runner does not export GITHUB_TOKEN by itself, so export
+      # the token under the exact name the upstream script reads, at
+      # job level so every upstream step that calls the API gets it.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       # --- Free disk space, copied from upstream CI (3 steps) ---
       - name: Free disk space (1/3)
@@ -339,6 +351,28 @@ jobs:
         if: inputs.mode == 'full'
         working-directory: upstream
         run: ./scripts/extract_fw.sh
+
+      # Build ROM #4 (2026-11-24) died 1h25m in because the upstream
+      # kernel patch could not resolve the LostPrime kernel URL (see
+      # the job-level GITHUB_TOKEN note above). Run the same API
+      # call + pattern up front so a repeat fails here in seconds
+      # with a clear message instead of after the firmware download.
+      - name: Pre-flight kernel release
+        if: inputs.mode == 'full'
+        run: |
+          # Same call + pattern as the upstream kernel patch. The
+          # Authorization header is added only when GITHUB_TOKEN is
+          # set and non-empty (upstream's ${VAR:+...} form): sending
+          # `Bearer ` with an empty token gets HTTP 401, while no
+          # header at all is a plain unauthenticated call.
+          KERNEL_URL=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer $GITHUB_TOKEN"} \
+            "https://api.github.com/repos/kurtnettle/android_kernel_samsung_sm7150/releases/latest" \
+            | grep -o 'https://[^"]*m51-ksu[^"]*\.zip' | head -n1)
+          if [ -z "$KERNEL_URL" ]; then
+            echo "::error::No m51-ksu kernel asset in the latest kurtnettle/android_kernel_samsung_sm7150 release (or the GitHub API call failed). The upstream kernel patch would abort with 'DOWNLOAD_FILE: URL is not set!'. Check the release assets / API rate limit and re-run."
+            exit 1
+          fi
+          echo "Kernel URL: $KERNEL_URL"
 
       - name: Build ROM
         if: inputs.mode == 'full'
