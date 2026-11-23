@@ -302,6 +302,19 @@ jobs:
         working-directory: upstream
         run: ./scripts/build_dependencies.sh
 
+      # Build ROM #3 (2026-11-24) died in upstream's camera patch:
+      # target/m51/patches/tweaks/patch_camera.py calls bare `baksmali`
+      # (disassemble), `smali` (reassemble) and `apksigner` (re-sign),
+      # and none of them is installed by upstream CI or setup-tools.sh
+      # — Arnav's own CI has failed on every run since the patch landed
+      # (2026-11-12). The script runs the smali classes out of the
+      # apktool jar build_dependencies.sh just built (with a Maven
+      # Central fallback) and apksigner from Android build-tools r34,
+      # all into $TOOLS_DIR/bin, which is already on PATH for Build ROM.
+      - name: Install smali tools (baksmali/smali/apksigner)
+        if: inputs.mode == 'full'
+        run: bash "$GITHUB_WORKSPACE/scripts/install-smali-tools.sh"
+
       - name: Cache stock firmwares
         if: inputs.mode == 'full'
         uses: actions/cache@v4
