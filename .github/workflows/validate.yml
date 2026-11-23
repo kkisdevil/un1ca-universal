@@ -123,6 +123,8 @@ jobs:
             esac
             python3 scripts/resolve-device.py "$f"
           done
+
+      - name: Check upstream repos
         run: |
           # Unauthenticated GitHub API: 60 requests/hour is plenty here.
           # validate-device.sh --check-upstream already verifies the
