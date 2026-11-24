@@ -1,0 +1,5 @@
+repo: Arnav3078/UN1CA-SM7150
+branch: seventeen
+commit: f6790355358fe9a83df4db080f3c8f7360c63d7f
+vendored: 2026-11-24T18:30:00Z
+note: target/m51 snapshot; 9 proprietary RIL binaries excluded by design (see vendor/arnav-un1ca-sm7150/README.md)
