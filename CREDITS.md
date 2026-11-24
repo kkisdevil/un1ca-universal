@@ -15,6 +15,44 @@ Everyone whose repo, tool, guide or info this project uses. If you contributed a
 - **Arnav3078 / UN1CA-SM7150** — https://github.com/Arnav3078/UN1CA-SM7150
   Fork of UN1CA on branch `seventeen`, described as "UN1CA 5.x One UI 9 And One UI 9.5 For M51". Also carries the `m51` target.
 
+## Vendored into this repo (see vendor/ + vendor/FETCH-SPEC.md)
+
+- **Arnav3078 / UN1CA-SM7150** (branch `seventeen` @ `f679035535`,
+  UN1CA 5.4.0) — the m51 target (`target/m51/`) is vendored in
+  `vendor/arnav-un1ca-sm7150/target-m51/` (65 files; the 9 proprietary
+  RIL binaries are excluded by design), plus the OTA scripts and
+  `smali_utils.sh`. The vendored tree is a pristine snapshot; our edits
+  live in `patches/m51-performance/`.
+- **Md. Mehedi Hasan (mehedihjoy0)** — the OTA scripts
+  (`release_rom.sh`, `build_incremental.sh`, `generate_ota_manifest.sh`,
+  `build_incremental_ota_zip.sh`) are his, byte-identical in Arnav's
+  and Mehedi's trees; vendored in `vendor/arnav-un1ca-sm7150/scripts/`.
+- **topjohnwu / samloader-rs** — the maintained Samsung firmware
+  downloader (v2.0.0, SHA-256 pinned in `vendor/FETCH-SPEC.md` and
+  `scripts/fetch-samloader-rs.sh`). Replaces the dead-PyPI Python
+  samloader (ananjaser1211/samloader).
+- **SameerAlSahab / ProjectArcadeX** (MIT) — `auto_gen.sh` (derive
+  device facts from stock firmware) and `samfirm.js`, vendored in
+  `vendor/borrowed/projectarcadex/`.
+- **jesec / samfirm.js** (GPL-3.0-or-later) — the Samsung firmware
+  downloader that ArcadeX vendors; our copy is ArcadeX's vendored
+  build — verify its hash against jesec's releases before trusting it
+  as a download route.
+- **Arnav3078 / ColorOS17-SM7150** (GPL-3.0) — `patch_boot.py`
+  (stdlib-only permissive boot + ramdisk fstab patch), `m51.cil`
+  sepolicy template, `device.prop` + `tweaks.prop`, vendored in
+  `vendor/borrowed/coloros17-sm7150/`. Credits: toraidl, OPPO & OnePlus.
+- **SpiderGirl-OS (AstroROM fork)** — HIDL→AIDL HAL-swap patterns +
+  FCM bump, documented (no code vendored) in
+  `vendor/borrowed/spidergirl-hidl-aidl-swaps.md`. Keep our source-built
+  lights HAL over SpiderGirl's binary r9q swap — never apply both.
+- **kurtnettle / LostPrime kernel** — the m51 kernel zip the build
+  downloads (`m51-ksu` release asset). Not vendored (release asset,
+  resolved at build time with a pre-flight check).
+- **mehedihjoy0 / M51-FIRMWARES** — the DXJ2 bootloader/modem firmware
+  set the installer flashes (pinned commit in `vendor/FETCH-SPEC.md`).
+  Raw partition images, never flashed by hand.
+
 ## UN1CA Carbon — S23-focused distribution
 
 - **alrigroup / un1ca-carbon** — https://github.com/alrigroup/un1ca-carbon
