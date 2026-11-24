@@ -1,0 +1,4 @@
+id=m51-performance
+name=m51 performance overrides (porter pack)
+author=YuZora porter (overrides of Arnav3078/UN1CA-SM7150 target/m51 files)
+description=Porter-side performance overrides for m51: relaxed thermal caps, live blur off, stock zram restored, stock perf configs kept, explicit 60 Hz SurfaceFlinger props. Applied by the workflow copy step (apply-performance-patches.sh), not by upstream apply_modules.sh.
