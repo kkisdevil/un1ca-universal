@@ -1,0 +1,335 @@
+# PORTER OVERRIDE - m51-performance pack (YuZora un1ca-universal).
+# This is a modified copy of upstream
+#   Arnav3078/UN1CA-SM7150@seventeen target/m51/patches/tweaks/customize.sh
+# with ONLY the F2/F3/F5 changes from research/06-performance-lag-m51.md
+# applied (blur off, zram restored, swappiness 60, stock perf configs
+# kept). Everything else is upstream verbatim - including the Knox /
+# SecureFolder / Now Brief / AI blocks (F4 was NOT applied: user scope is
+# keep all UN1CA flagship features, remove blur effects only).
+# The workflow copies this file over the upstream checkout before
+# make_rom.sh runs (patches/m51-performance/apply-performance-patches.sh).
+# If upstream changes this file, re-apply the same edits to the new copy
+# (the README lists the exact upstream lines each change touches).
+# PORTER OVERRIDE (F5, m51-performance pack): the stock Qualcomm perf
+# configs are KEPT. Upstream deleted vendor/etc/hyper and vendor/etc/perf
+# here ("Removing performance capping"), which also removes the perfd
+# boost tables the perf HAL needs to raise frequencies on touch and app
+# launch. See patches/m51-performance/README.md.
+LOG_STEP_IN "- Keeping stock performance configs (porter override F5)"
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Removing WAV 32-bit PCM support"
+SET_PROP "system" "media.extractor.sec.pcm-32bit" --delete
+LOG_STEP_OUT
+
+# PORTER OVERRIDE (F3, m51-performance pack): the stock zram size is
+# KEPT. Upstream rewrote zramsize to 0 in the vendor fstabs here, leaving
+# no compressed swap on the 6 GB variant; the stock fstab value survives
+# by not touching it. See patches/m51-performance/README.md.
+LOG_STEP_IN "- Keeping stock zram size (porter override F3)"
+LOG_STEP_OUT
+
+if [[ "$BUILD_TYPE" == "-decrypted" ]]; then
+    LOG_STEP_IN "- Setting unencrypted ROM properties"
+    SET_PROP "vendor" "ro.crypto.state" "unencrypted"
+    SET_PROP "vendor" "ro.crypto.type" "none"
+    SET_PROP "vendor" "ro.crypto.override" "false"
+    SET_PROP "system" "ro.crypto.state" "unencrypted"
+    SET_PROP "system" "ro.crypto.type" "none"
+    for f in "$WORK_DIR/vendor/etc"/fstab*; do
+        [ -f "$f" ] || continue
+        sed -E -i \
+            -e 's/fileencryption=[^,[:space:]]+,?//g' \
+            -e 's/metadata_encryption=[^,[:space:]]+,?//g' \
+            -e 's/keydirectory=[^,[:space:]]+,?//g' \
+            -e 's/forceencrypt=[^,[:space:]]+,?//g' \
+            -e 's/forcefde=[^,[:space:]]+,?//g' \
+            -e 's/,,/,/g' \
+            -e 's/,[[:space:]]*$/ /' \
+            "$f"
+    done
+    LOG_STEP_OUT
+fi
+
+LOG_STEP_IN "- Fixing Qualcomm hardware device nodes in ueventd and init.rc"
+if [ -f "$WORK_DIR/system/system/etc/ueventd.rc" ]; then
+    if ! grep -q "import /vendor/ueventd.rc" "$WORK_DIR/system/system/etc/ueventd.rc"; then
+        sed -i '1iimport /vendor/ueventd.rc' "$WORK_DIR/system/system/etc/ueventd.rc"
+    fi
+    if [ -f "$WORK_DIR/vendor/ueventd.rc" ] && ! grep -q "/dev/kgsl-3d0" "$WORK_DIR/system/system/etc/ueventd.rc"; then
+        echo "" >> "$WORK_DIR/system/system/etc/ueventd.rc"
+        echo "# Qualcomm SM7150 hardware permissions imported from vendor" >> "$WORK_DIR/system/system/etc/ueventd.rc"
+        cat "$WORK_DIR/vendor/ueventd.rc" >> "$WORK_DIR/system/system/etc/ueventd.rc"
+    fi
+fi
+
+if [ -f "$WORK_DIR/system/system/etc/init/hw/init.rc" ]; then
+    if ! grep -q "chmod 0666 /dev/kgsl-3d0" "$WORK_DIR/system/system/etc/init/hw/init.rc"; then
+        sed -i '/on init/a \    chmod 0666 /dev/kgsl-3d0\n    chown system graphics /dev/kgsl-3d0\n    restorecon /dev/kgsl-3d0\n    chmod 0666 /dev/kgsl\n    chown system graphics /dev/kgsl\n    restorecon /dev/kgsl\n    chmod 0664 /dev/ion\n    chown system system /dev/ion\n    restorecon /dev/ion' \
+            "$WORK_DIR/system/system/etc/init/hw/init.rc"
+    fi
+    sed -i '/ro.hwui.use_vulkan/d' "$WORK_DIR/system/system/etc/init/hw/init.rc"
+fi
+
+if [ -f "$WORK_DIR/system/system/etc/init/surfaceflinger.rc" ]; then
+    if ! grep -q "chmod 0666 /dev/kgsl-3d0" "$WORK_DIR/system/system/etc/init/surfaceflinger.rc"; then
+        echo "" >> "$WORK_DIR/system/system/etc/init/surfaceflinger.rc"
+        echo "on early-boot" >> "$WORK_DIR/system/system/etc/init/surfaceflinger.rc"
+        echo "    chmod 0666 /dev/kgsl-3d0" >> "$WORK_DIR/system/system/etc/init/surfaceflinger.rc"
+        echo "    chown system graphics /dev/kgsl-3d0" >> "$WORK_DIR/system/system/etc/init/surfaceflinger.rc"
+        echo "    restorecon /dev/kgsl-3d0" >> "$WORK_DIR/system/system/etc/init/surfaceflinger.rc"
+    fi
+fi
+LOG_STEP_OUT
+
+# PORTER OVERRIDE (F2, m51-performance pack): live blur OFF by default.
+# Upstream forced blur on in this block (nativeblur=true, background blur
+# on, and deleted ro.sf.blurs_are_expensive). User scope: keep all UN1CA
+# flagship features, remove blur effects only. So blur is off, the
+# system's own "blur is expensive" cost flag is LEFT in place (not
+# deleted), and the hardware-acceleration / SkiaGL renderer choices are
+# unchanged. The swappiness lines in this block are F3 (60, not 100).
+# NOTE: the "Tuning UI responsiveness" block below re-asserts these same
+# props later in this script (SET_PROP replaces in place, last call wins),
+# so it carries the same F2/F3 values - see README.md.
+LOG_STEP_IN "- Enabling Hardware Acceleration (live blur off, porter override F2)"
+SET_PROP "vendor" "debug.egl.hw" "1"
+SET_PROP "vendor" "debug.sf.hw" "1"
+SET_PROP "vendor" "ro.hwui.use_vulkan" "false"
+SET_PROP "vendor" "debug.hwui.renderer" "skiagl"
+SET_PROP "vendor" "ro.surface_flinger.supports_background_blur" "0"
+SET_PROP "vendor" "persist.sys.unica.nativeblur" "false"
+SET_PROP "vendor" "sys.sysctl.swappiness" "60"
+
+SET_PROP "system" "debug.egl.hw" "1"
+SET_PROP "system" "debug.sf.hw" "1"
+SET_PROP "system" "ro.hwui.use_vulkan" "false"
+SET_PROP "system" "debug.hwui.renderer" "skiagl"
+SET_PROP "system" "ro.surface_flinger.supports_background_blur" "0"
+SET_PROP "system" "persist.sys.unica.nativeblur" "false"
+SET_PROP "system" "sys.sysctl.swappiness" "60"
+
+SET_PROP "vendor" "debug.renderengine.backend" --delete
+SET_PROP "system" "debug.renderengine.backend" --delete
+
+if [ -f "$WORK_DIR/vendor/build.prop" ]; then
+    sed -i 's/^ro\.hwui\.use_vulkan=.*/ro.hwui.use_vulkan=false/' "$WORK_DIR/vendor/build.prop"
+fi
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Neutralizing kernel 4.14 BPF GPU memory tracking abort in libmeminfo"
+if [ -f "$WORK_DIR/system/system/lib64/libmeminfo.so" ]; then
+    python3 "$MODPATH/patch_libmeminfo.py" "$WORK_DIR/system/system/lib64/libmeminfo.so" || true
+fi
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Patching Qualcomm HWC 2.4 service to ignore unknown SurfaceFlinger display commands"
+if [ -f "$WORK_DIR/vendor/bin/hw/android.hardware.graphics.composer@2.4-service" ]; then
+    python3 "$MODPATH/patch_composer.py" "$WORK_DIR/vendor/bin/hw/android.hardware.graphics.composer@2.4-service" || true
+fi
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Restoring authentic Samsung platform priv-apps"
+FW_S23_SRC="$(ls -d "${FW_DIR:-$SRC_DIR/out/fw}"/SM-S911B* 2>/dev/null | head -n 1)"
+if [ -d "$FW_S23_SRC" ]; then
+    for apk_rel in \
+        "system/system/priv-app/Telecom/Telecom.apk" \
+        "system/system/priv-app/DressRoom/DressRoom.apk" \
+        "system/system/priv-app/PhotoEditor_AIFull/PhotoEditor_AIFull.apk" \
+        "system/system/priv-app/SpriteWallpaper/SpriteWallpaper.apk" \
+        "system/system/priv-app/SecureFolder/SecureFolder.apk" \
+        "system/system/priv-app/KnoxCore/KnoxCore.apk" \
+        "system/system/priv-app/KnoxGuard/KnoxGuard.apk"
+    do
+        if [ -f "$FW_S23_SRC/$apk_rel" ]; then
+            mkdir -p "$(dirname "$WORK_DIR/$apk_rel")"
+            cp -f "$FW_S23_SRC/$apk_rel" "$WORK_DIR/$apk_rel"
+            if [ -f "$FW_S23_SRC/${apk_rel}.prof" ]; then
+                cp -f "$FW_S23_SRC/${apk_rel}.prof" "$WORK_DIR/${apk_rel}.prof" 2>/dev/null || true
+            fi
+            chmod 644 "$WORK_DIR/$apk_rel"
+        fi
+    done
+fi
+LOG_STEP_OUT
+
+# Patch isCompromisedDevice check in SecureFolder
+SMALI_PATCH "system" "system/priv-app/SecureFolder/SecureFolder.apk" \
+    "smali/com/samsung/knox/securefolder/provisioning/setup/viewmodel/WelcomeViewModel.smali" "return" \
+    "isCompromisedDevice()Z" "false"
+
+LOG_STEP_IN "- Removing crashing Qualcomm QCC telemetry service"
+DELETE_FROM_WORK_DIR "system_ext" "app/QCC" || true
+DELETE_FROM_WORK_DIR "system_ext" "bin/qccsyshal@1.2-service" || true
+DELETE_FROM_WORK_DIR "system_ext" "bin/qccsyshal_aidl-service" || true
+DELETE_FROM_WORK_DIR "system_ext" "etc/init/vendor.qti.hardware.qccsyshal@1.2-service.rc" || true
+DELETE_FROM_WORK_DIR "system_ext" "etc/init/vendor.qti.qccsyshal_aidl-service.rc" || true
+DELETE_FROM_WORK_DIR "system_ext" "etc/permissions/com.qti.qcc.vendor_qcc.xml" || true
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Permitting Developer Options in SELinux policy"
+if [ -f "$WORK_DIR/system/system/etc/selinux/plat_sepolicy.cil" ]; then
+    if ! grep -q "allow system_app logpersistd_logging_prop" "$WORK_DIR/system/system/etc/selinux/plat_sepolicy.cil"; then
+        echo "(allow system_app logpersistd_logging_prop (property_service (set)))" >> "$WORK_DIR/system/system/etc/selinux/plat_sepolicy.cil"
+        echo "(allow system_app logd_prop (property_service (set)))" >> "$WORK_DIR/system/system/etc/selinux/plat_sepolicy.cil"
+    fi
+fi
+if [ -f "$WORK_DIR/vendor/etc/selinux/vendor_sepolicy.cil" ]; then
+    if ! grep -q "allow system_app_30_0 logpersistd_logging_prop_30_0" "$WORK_DIR/vendor/etc/selinux/vendor_sepolicy.cil"; then
+        echo "(allow system_app_30_0 logpersistd_logging_prop_30_0 (property_service (set)))" >> "$WORK_DIR/vendor/etc/selinux/vendor_sepolicy.cil"
+        echo "(allow system_app_30_0 logd_prop_30_0 (property_service (set)))" >> "$WORK_DIR/vendor/etc/selinux/vendor_sepolicy.cil"
+    fi
+fi
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Patching libstagefright to prevent fortify fread abort during video encoding"
+python3 - << 'EOF'
+import os
+work_dir = os.environ.get("WORK_DIR", "/home/arnav/UN1CA-4.0-M51/out/target/m51/work_dir")
+for is64 in [False, True]:
+    lib_path = f"{work_dir}/system/system/lib64/libstagefright.so" if is64 else f"{work_dir}/system/system/lib/libstagefright.so"
+    if not os.path.exists(lib_path):
+        continue
+    with open(lib_path, "rb") as f:
+        data = bytearray(f.read())
+    if is64:
+        off = 0x000f228c
+        if len(data) > off + 8:
+            data[off:off+8] = bytes.fromhex("00008052c0035fd6")
+    else:
+        off = 0x000a552c
+        if len(data) > off + 4:
+            data[off:off+4] = bytes.fromhex("00207047")
+    with open(lib_path, "wb") as f:
+        f.write(data)
+    print(f"Patched {'64-bit' if is64 else '32-bit'} libstagefright.so")
+EOF
+LOG_STEP_OUT
+
+# PORTER OVERRIDE (F2, m51-performance pack): the blur feature flags in
+# floating_feature.xml are forced OFF, matching the props above. Upstream
+# forced them TRUE here; with nativeblur=false and background blur
+# unsupported, leaving them TRUE would still advertise blur features the
+# renderer cannot (and should not) provide.
+LOG_STEP_IN "- Disabling One UI 9 Live Blur in floating_feature.xml (porter override F2)"
+for ff in "$WORK_DIR/system/system/etc/floating_feature.xml" "$WORK_DIR/vendor/etc/floating_feature.xml"; do
+    if [ -f "$ff" ]; then
+        sed -i 's/3D_SURFACE_TRANSITION_FLAG>TRUE/3D_SURFACE_TRANSITION_FLAG>FALSE/' "$ff"
+        sed -i 's/CAPTURED_BLUR>TRUE/CAPTURED_BLUR>FALSE/' "$ff"
+        sed -i 's/PARTIAL_BLUR>TRUE/PARTIAL_BLUR>FALSE/' "$ff"
+    fi
+done
+LOG_STEP_OUT
+
+# PORTER OVERRIDE (F2+F3, m51-performance pack): this block runs after the
+# blur block above in the same script and re-asserts nativeblur,
+# supports_background_blur and swappiness - SET_PROP replaces in place, so
+# the last call wins (upstream scripts/utils/common_utils.sh SET_PROP).
+# It therefore carries the same values: blur off, swappiness 60.
+LOG_STEP_IN "- Tuning UI responsiveness, smoothness and dexopt for Snapdragon 730G"
+SET_PROP "system" "debug.hwui.renderer" "skiagl"
+SET_PROP "system" "ro.hwui.use_vulkan" "false"
+SET_PROP "system" "ro.surface_flinger.supports_background_blur" "0"
+SET_PROP "system" "persist.sys.unica.nativeblur" "false"
+SET_PROP "system" "renderthread.skia.reduceopstasksplitting" "true"
+SET_PROP "system" "ro.surface_flinger.max_frame_buffer_acquired_buffers" "3"
+SET_PROP "system" "persist.sys.scrollingcache" "3"
+SET_PROP "system" "sys.sysctl.swappiness" "60"
+SET_PROP "system" "dalvik.vm.dex2oat-threads" "6"
+SET_PROP "system" "dalvik.vm.boot-dex2oat-threads" "8"
+SET_PROP "system" "dalvik.vm.dex2oat-cpu-set" "0,1,2,3,4,5,6,7"
+SET_PROP "system" "dalvik.vm.boot-dex2oat-cpu-set" "0,1,2,3,4,5,6,7"
+SET_PROP "system" "dalvik.vm.dex2oat64.enabled" "true"
+
+SET_PROP "vendor" "debug.hwui.renderer" "skiagl"
+SET_PROP "vendor" "ro.hwui.use_vulkan" "false"
+SET_PROP "vendor" "ro.surface_flinger.supports_background_blur" "0"
+SET_PROP "vendor" "persist.sys.unica.nativeblur" "false"
+SET_PROP "vendor" "renderthread.skia.reduceopstasksplitting" "true"
+SET_PROP "vendor" "ro.surface_flinger.max_frame_buffer_acquired_buffers" "3"
+SET_PROP "vendor" "sys.sysctl.swappiness" "60"
+
+if [ -f "$SRC_DIR/target/m51/camera/camera-feature.xml" ]; then
+    cp -f "$SRC_DIR/target/m51/camera/camera-feature.xml" "$WORK_DIR/system/system/cameradata/camera-feature.xml"
+fi
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Fixing Qualcomm Codec2 seccomp policy"
+if [ -f "$WORK_DIR/vendor/etc/seccomp_policy/samsung.software.media.c2-base-policy" ]; then
+    sed -i 's/mremap: arg3 == 3/mremap: 1/' "$WORK_DIR/vendor/etc/seccomp_policy/samsung.software.media.c2-base-policy"
+fi
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Enabling Codec2 software decoders for media playback"
+for f in "$WORK_DIR/vendor/etc"/media_codecs*.xml; do
+    [ -f "$f" ] || continue
+    if grep -q "</MediaCodecs>" "$f"; then
+        if ! grep -q "media_codecs_google_c2.xml" "$f"; then
+            sed -i '/<\/MediaCodecs>/i \    <Include href="media_codecs_google_c2.xml" />' "$f"
+        fi
+        if ! grep -q "media_codecs_c2_sec.xml" "$f"; then
+            sed -i '/<\/MediaCodecs>/i \    <Include href="media_codecs_c2_sec.xml" />' "$f"
+        fi
+    fi
+done
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Fixing NFC persistence across reboot"
+mkdir -p "$WORK_DIR/system/system/etc/init"
+cat << 'EOF' > "$WORK_DIR/system/system/etc/init/nfc_persist.rc"
+on boot
+    setprop persist.device_config.nfc.nfc_default_on false
+    setprop persist.device_config.nfc.nfc_state_change_during_boot_completed_enabled false
+
+on property:sys.boot_completed=1
+    exec_background - system system -- /system/bin/sh -c "if [ \"\$(settings get global nfc_on 2>/dev/null)\" = \"0\" ]; then svc nfc disable; fi"
+EOF
+SET_METADATA "system" "system/etc/init/nfc_persist.rc" "0" "0" "0644" "u:object_r:system_file:s0"
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Removing Bixby Wakeup to eliminate crashes and battery drain"
+DELETE_FROM_WORK_DIR "system" "system/app/BixbyWakeup" || true
+DELETE_FROM_WORK_DIR "system" "system/etc/permissions/privapp-permissions-com.samsung.android.bixby.wakeup.xml" || true
+DELETE_FROM_WORK_DIR "system" "system/etc/sysconfig/preinstalled-packages-com.samsung.android.bixby.wakeup.xml" || true
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Enabling Now Brief and Personal Data Engine in floating_feature.xml"
+for ff in "$WORK_DIR/system/system/etc/floating_feature.xml" "$WORK_DIR/vendor/etc/floating_feature.xml"; do
+    if [ -f "$ff" ]; then
+        sed -i 's/<SEC_FLOATING_FEATURE_COMMON_CONFIG_AI_VERSION>.*<\/SEC_FLOATING_FEATURE_COMMON_CONFIG_AI_VERSION>/<SEC_FLOATING_FEATURE_COMMON_CONFIG_AI_VERSION>20263<\/SEC_FLOATING_FEATURE_COMMON_CONFIG_AI_VERSION>/' "$ff"
+        sed -i '/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE/d' "$ff"
+        sed -i '/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_AI_BRIEF_FOR_UT/d' "$ff"
+        sed -i '/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_NOW_BRIEF/d' "$ff"
+        sed -i '/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_SMART_SUGGESTIONS_WIDGET/d' "$ff"
+        sed -i '/SEC_FLOATING_FEATURE_SYSTEMUI_SUPPORT_BRIEF_NOTIFICATION/d' "$ff"
+        sed -i '/SEC_FLOATING_FEATURE_GENAI_CONFIG_LLM_VERSION/d' "$ff"
+        sed -i 's/<\/SecFloatingFeatureSet>/    <SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE>TRUE<\/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE>\n    <SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_AI_BRIEF_FOR_UT>TRUE<\/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_AI_BRIEF_FOR_UT>\n    <SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_NOW_BRIEF>TRUE<\/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_NOW_BRIEF>\n    <SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_SMART_SUGGESTIONS_WIDGET>TRUE<\/SEC_FLOATING_FEATURE_FRAMEWORK_SUPPORT_SMART_SUGGESTIONS_WIDGET>\n    <SEC_FLOATING_FEATURE_SYSTEMUI_SUPPORT_BRIEF_NOTIFICATION>TRUE<\/SEC_FLOATING_FEATURE_SYSTEMUI_SUPPORT_BRIEF_NOTIFICATION>\n    <SEC_FLOATING_FEATURE_GENAI_CONFIG_LLM_VERSION>1.70<\/SEC_FLOATING_FEATURE_GENAI_CONFIG_LLM_VERSION>\n<\/SecFloatingFeatureSet>/' "$ff"
+    fi
+done
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Granting GenUI permission to SystemUI and AODService for Now Brief cards"
+for sysui_perm in "$WORK_DIR/system_ext/etc/permissions/com.android.systemui.xml" "$WORK_DIR/system/system/etc/permissions/com.android.systemui.xml"; do
+    if [ -f "$sysui_perm" ] && ! grep -q "BIND_GENUI_SERVICE" "$sysui_perm"; then
+        sed -i '/<privapp-permissions package="com.android.systemui">/a \        <permission name="com.samsung.android.smartsuggestions.permission.BIND_GENUI_SERVICE"\/>' "$sysui_perm"
+    fi
+done
+for aod_perm in "$WORK_DIR/system/system/etc/permissions/privapp-permissions-com.samsung.android.app.aodservice.xml"; do
+    if [ -f "$aod_perm" ] && ! grep -q "BIND_GENUI_SERVICE" "$aod_perm"; then
+        sed -i '/<privapp-permissions package="com.samsung.android.app.aodservice">/a \       <permission name="com.samsung.android.smartsuggestions.permission.BIND_GENUI_SERVICE"\/>\n       <permission name="com.samsung.android.smartsuggestions.search.permission.READ"\/>\n       <permission name="com.samsung.android.smartsuggestions.search.permission.WRITE"\/>\n       <permission name="com.samsung.android.smartsuggestions.search.permission.UPDATE_INDEX"\/>' "$aod_perm"
+    fi
+done
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Adding Moments (Personal Data Engine) from pa2qxxx"
+ADD_TO_WORK_DIR "pa2qxxx" "system"     "system/etc/default-permissions/default-permissions-com.samsung.android.app.moments.xml" 0 0 644 "u:object_r:system_file:s0"
+ADD_TO_WORK_DIR "pa2qxxx" "system"     "system/etc/permissions/privapp-permissions-com.samsung.android.app.moments.xml" 0 0 644 "u:object_r:system_file:s0"
+ADD_TO_WORK_DIR "pa2qxxx" "system"     "system/etc/sysconfig/moments.xml" 0 0 644 "u:object_r:system_file:s0"
+ADD_TO_WORK_DIR "pa2qxxx" "system" "system/priv-app/Moments/Moments.apk" 0 0 644 "u:object_r:system_file:s0"
+LOG_STEP_OUT
+
+LOG_STEP_IN "- Adding full AI SamsungSmartSuggestions with Now Brief widget"
+mkdir -p "$WORK_DIR/system/system/priv-app/SamsungSmartSuggestions"
+cat "$SRC_DIR/unica/mods/paradigm/system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk".* >     "$WORK_DIR/system/system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk"
+chmod 644 "$WORK_DIR/system/system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk"
+LOG_STEP_OUT
