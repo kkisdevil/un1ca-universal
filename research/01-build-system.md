@@ -553,6 +553,19 @@ failure is expected, and the fix.
   against FUS — a stale `.downloaded` marker with `--force` clears
   it). Do not "fix" this by hard-coding a firmware URL: FUS links
   are signed and short-lived.
+- **Build #6 (2026-11-24):** the step downloads THREE firmwares in
+  one attempt (30.9 GB total) and needs ~66 min at normal FUS speed
+  (~9.5 MB/s) — the 60-minute per-attempt timeout killed it during
+  the third file (G990B 8.79G, cut at 68% / 5.97G while still
+  advancing at ~9.7 MB/s, ETA ~5 min; the first two, S911B 16.7G and
+  M515F 5.41G, had completed). "Error: Timeout of 3600000ms hit",
+  no download error in the log. `retry_on: error` does NOT retry a
+  timeout (only a non-zero exit), so the x3 retries never ran. Fix
+  in build.yml: `timeout_minutes: 180`, `retry_on: any`. When a
+  download step is slow, count the step's TOTAL workload (all files,
+  downloads + extract/verify) against the timeout — a single file's
+  percentage misleads (the 52% seen mid-run was the third file,
+  after 22 GB had already downloaded).
 
 ### 3. `extract_fw.sh` aborts: missing BL/AP tar, bad MD5, or mount failure
 
