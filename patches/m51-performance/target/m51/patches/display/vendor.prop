@@ -1,0 +1,19 @@
+debug.sf.latch_unsignaled=1
+vendor.display.disable_excl_rect_partial_fb=1
+vendor.display.use_smooth_motion=0
+debug.sf.enable_advanced_sf_phase_offset=0
+vendor.display.disable_offline_rotator=1
+vendor.display.enable_async_powermode=0
+vendor.display.enable_early_wakeup=0
+
+# PORTER OVERRIDE (P1, m51-performance pack): explicit SurfaceFlinger 60 Hz
+# props, defence in depth. The legacy backport (unica/patches/legacy/
+# customize.sh BACKPORT_SF_PROPS) only ADDS these props if they are missing
+# - it never overwrites a value the stock m51 vendor build.prop already
+# carries. An explicit override closes that hole. Even in the worst case
+# this cannot produce 120 fps: the HWC only reports 60 Hz modes.
+# See research/06c-frame-rate-60.md section 6 (P1) and
+# patches/m51-performance/README.md.
+ro.surface_flinger.enable_frame_rate_override=false
+ro.surface_flinger.use_content_detection_for_refresh_rate=false
+ro.surface_flinger.game_default_frame_rate_override=60
