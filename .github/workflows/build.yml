@@ -230,6 +230,19 @@ jobs:
           fetch-depth: 1
           path: upstream
 
+      # Porter performance pack (research/06-performance-lag-m51.md and
+      # research/06c-frame-rate-60.md; user scope 2026-11-24: keep all
+      # UN1CA flagship features, remove blur effects only). Copies the
+      # overrides in patches/m51-performance/ over the upstream checkout
+      # (relaxed thermal caps, live blur off, stock zram, stock perf
+      # configs, explicit 60 Hz SurfaceFlinger props) before make_rom.sh
+      # runs. m51-only: the script skips any other device with a clear
+      # message, and fails loudly if upstream moved an overridden file.
+      - name: Apply porter performance patches
+        run: |
+          bash "$GITHUB_WORKSPACE/patches/m51-performance/apply-performance-patches.sh" \
+            "$GITHUB_WORKSPACE/upstream" "${{ inputs.device }}"
+
       - name: Set up build environment
         working-directory: upstream
         env:
@@ -380,6 +393,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/make_rom.sh --build-rom-zip
+
+      # P0 (research/06c-frame-rate-60.md section 6): fail the build if
+      # any 120 Hz leak survives into the built ROM. Greps the assembled
+      # work dir - the patched files exactly as they are packed into the
+      # partition images - for the HFR values in floating_feature.xml and
+      # the frame-rate-override prop in vendor/build.prop. Full mode only:
+      # dry-run builds no ROM. Runs before any release so a leaking ROM
+      # is never published (the artifact upload below still runs on
+      # failure, for inspection - the job itself is marked failed).
+      - name: Assert 60 Hz pin (no 120 leaks)
+        if: inputs.mode == 'full'
+        run: |
+          bash "$GITHUB_WORKSPACE/scripts/assert-60hz.sh" "$WORK_DIR"
 
       - name: Release this ROM
         if: inputs.mode == 'full' && inputs.release_rom
