@@ -351,13 +351,27 @@ jobs:
           restore-keys: |
             fw-${{ inputs.device }}-
 
+      # Build ROM #6 (2026-11-24) died in this step: the step downloads
+      # THREE firmwares in one attempt (30.9 GB total) — S911B 16.7G
+      # and M515F 5.41G completed, but the third (G990B 8.79G) was cut
+      # at 68% (5.97G) while still advancing at ~9.7 MB/s (ETA ~5 min)
+      # when the 60-minute per-attempt timeout hit ("Error: Timeout of
+      # 3600000ms hit"). The step needs ~66 min at normal FUS speed,
+      # so 60 min is simply too short. The retry never ran:
+      # nick-fields/retry with `retry_on: error` retries only on a
+      # non-zero exit and leaves timeouts alone, so a timeout is a
+      # hard fail. 180 minutes covers the full three-firmware
+      # download with headroom and still fits the 360-minute job cap
+      # (worst case ~180 + ~95 build + ~25 setup/extract/upload);
+      # `retry_on: any` makes a timeout retry instead of failing
+      # outright. The job cap bounds the total retry time.
       - name: Download stock firmwares
         if: inputs.mode == 'full'
         uses: nick-fields/retry@v4
         with:
-          timeout_minutes: 60
+          timeout_minutes: 180
           max_attempts: 3
-          retry_on: error
+          retry_on: any
           command: cd upstream && ./scripts/download_fw.sh
 
       - name: Extract stock firmwares
