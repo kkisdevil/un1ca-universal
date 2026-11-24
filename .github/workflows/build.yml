@@ -230,14 +230,32 @@ jobs:
           fetch-depth: 1
           path: upstream
 
+      # Vendored m51 target (vendor/arnav-un1ca-sm7150/, pin
+      # f679035535 — see vendor/README.md and docs/BUILD-GUIDE.md).
+      # Copies OUR snapshot of Arnav's target/m51/ over the upstream
+      # checkout so the build uses our copy, not Arnav's live tree.
+      # m51 + Arnav-only: any other device or source repo skips with a
+      # clear message. Fails loudly if the upstream checkout's HEAD
+      # differs from the vendored pin (re-vendor with
+      # scripts/vendor-target-m51.sh), if a vendored file does not copy
+      # byte-identical, or if any of the 9 proprietary RIL binaries
+      # (not vendored by design) is missing from the checkout. Runs
+      # BEFORE the performance patches, which apply on top of this copy.
+      - name: Use vendored m51 target
+        run: |
+          bash "$GITHUB_WORKSPACE/scripts/use-vendored-target.sh" \
+            "$GITHUB_WORKSPACE/upstream" "${{ inputs.device }}" \
+            "${{ needs.resolve.outputs.source_repo }}"
+
       # Porter performance pack (research/06-performance-lag-m51.md and
       # research/06c-frame-rate-60.md; user scope 2026-11-24: keep all
       # UN1CA flagship features, remove blur effects only). Copies the
       # overrides in patches/m51-performance/ over the upstream checkout
       # (relaxed thermal caps, live blur off, stock zram, stock perf
-      # configs, explicit 60 Hz SurfaceFlinger props) before make_rom.sh
-      # runs. m51-only: the script skips any other device with a clear
-      # message, and fails loudly if upstream moved an overridden file.
+      # configs, explicit 60 Hz SurfaceFlinger props, and the F3 daemon
+      # neutralisation) before make_rom.sh runs. m51-only: the script
+      # skips any other device with a clear message, and fails loudly
+      # if upstream moved an overridden file.
       - name: Apply porter performance patches
         run: |
           bash "$GITHUB_WORKSPACE/patches/m51-performance/apply-performance-patches.sh" \
