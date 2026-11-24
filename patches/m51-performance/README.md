@@ -1,6 +1,6 @@
 # m51-performance — porter performance pack for the Galaxy M51
 
-A porter-side override pack: modified copies of three upstream files that
+A porter-side override pack: modified copies of four upstream files that
 the workflow copies over the upstream checkout before `make_rom.sh` runs.
 It fixes the lag causes diagnosed in
 `research/06-performance-lag-m51.md` and
@@ -24,7 +24,7 @@ environment":
 bash patches/m51-performance/apply-performance-patches.sh <upstream-dir> <device>
 ```
 
-The script copies the three override files below over the upstream
+The script copies the four override files below over the upstream
 checkout (relative paths preserved), verifies each copy landed
 byte-identical and carries the `PORTER OVERRIDE` marker, and fails
 loudly if an upstream target file no longer exists. It is m51-only: any
@@ -119,6 +119,42 @@ the Adreno 618.
 Expected effect: fewer low-memory-killer kills on the 6 GB variant —
 warm app switches instead of cold starts.
 
+### F3-daemon — Neutralise the daemon that undoes F3 at boot (added 2026-11-24)
+
+**File:** `unica/mods/settings/system/bin/carbon_power_engine`
+(Arnav's 5.3.0+ Performance Profile engine, installed by the
+`unica/mods/settings` mod).
+**Evidence:** research/09-arnav-un1ca.md §1.4. Build-time props are
+not the last word: `carbon_power_engine boot` runs `apply_zram()`,
+which does `sysctl -w vm.swappiness=100` at **every boot** — after
+init applies the F3 prop — so on build #7 (5.4.0) the effective
+runtime swappiness was 100, not the F3 value 60. The prop alone
+cannot fix this; the daemon has to be patched (or removed — it is
+not removed, because the Performance Profiles are a flagship
+feature the user scope keeps).
+
+- `apply_zram()`: `vm.swappiness` `100` → `60` — the only change in
+  this file. The other five sysctls in the function
+  (`vfs_cache_pressure=50`, `watermark_boost_factor=0`,
+  `watermark_scale_factor=150`, `dirty_ratio=20`,
+  `dirty_background_ratio=5`) are **unchanged**: they are VM tuning,
+  not the F3 value, and the pack does not invent new values for them.
+  (The function name is misleading — it touches no zram at all, only
+  sysctls. The actual zram restore is the F3 `zramsize=0` deletion
+  above; the daemon does not set a zram size.)
+- The daemon itself, its three power modes, the `unica-gpu` daemon,
+  and the `carbon_power.rc` init service are **unchanged** — only the
+  one swappiness write is aligned with F3. Performance mode's
+  `force_rail_on`/`force_clk_on`/`force_bus_on` still hold the SoC
+  hot against F1's caps; that is a separate, user-visible trade-off,
+  not a bug this pack fixes.
+
+Verify on a booted device, not from the prop: `cat
+/proc/sys/vm/swappiness` must read `60` after a reboot. If it reads
+`100`, the daemon override did not land (or upstream moved the file
+and the apply script failed the build — which is the intended
+behaviour).
+
 ### F5 — Keep the stock perf configs
 
 **File:** `target/m51/patches/tweaks/customize.sh` (:1–4).
@@ -206,6 +242,11 @@ switching EROFS to ext4 (no evidence it helps).
 - Override `siop_model.xml`: parses as XML (`xml.etree`); diffed
   against upstream — only the F1 limiter changes listed above.
 - Override `vendor.prop`: upstream 7 lines verbatim + the 3 P1 props.
+- Override `carbon_power_engine`: `bash -n` clean; diffed against
+  upstream — the only changes are the `PORTER OVERRIDE` header comment
+  and the `vm.swappiness` 100 → 60 line. Upstream path verified via
+  the GitHub API (HTTP 200) at `Arnav3078/UN1CA-SM7150@seventeen`
+  (`unica/mods/settings/system/bin/carbon_power_engine`, 7,397 B).
 - `scripts/assert-60hz.sh` was exercised against fake work dirs
   (passing case + each failure case) — see its header comment.
 - Upstream target paths verified via the GitHub API (HTTP 200) at
@@ -223,12 +264,12 @@ FPS numbers anywhere.
 
 ## Maintenance
 
-- If upstream changes any of the three overridden files, the apply
+- If upstream changes any of the four overridden files, the apply
   script still copies the pack's copy over it (the copy is
   unconditional). Re-read the upstream diff on the next build failure
   and re-apply the same edits to the new copy — the README table
   above lists the exact upstream lines each change touches.
-- If upstream *moves* or *deletes* one of the three files, the apply
+- If upstream *moves* or *deletes* one of the four files, the apply
   script fails the build loudly instead of silently dropping the fix.
   Update the pack (new path, or drop the override with a README note)
   — do not work around the failure by deleting the check.

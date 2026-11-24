@@ -31,10 +31,14 @@ if [ ! -d "$UPSTREAM_DIR" ]; then
 fi
 
 # Override files, relative to the pack dir and to the upstream checkout.
+# The first three are the original F1/F2/F3/F5/P1 overrides; the fourth is
+# the F3 daemon neutralisation (see README §F3-daemon): the daemon runs at
+# boot AFTER the build-time patches and would otherwise undo F3 at runtime.
 OVERRIDES=(
     "target/m51/dvfs/siop_model.xml"
     "target/m51/patches/tweaks/customize.sh"
     "target/m51/patches/display/vendor.prop"
+    "unica/mods/settings/system/bin/carbon_power_engine"
 )
 
 for rel in "${OVERRIDES[@]}"; do
