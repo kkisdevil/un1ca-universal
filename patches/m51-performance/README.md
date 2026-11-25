@@ -1,6 +1,6 @@
 # m51-performance — porter performance pack for the Galaxy M51
 
-A porter-side override pack: modified copies of four upstream files that
+A porter-side override pack: modified copies of five upstream files that
 the workflow copies over the upstream checkout before `make_rom.sh` runs.
 It fixes the lag causes diagnosed in
 `research/06-performance-lag-m51.md` and
@@ -24,7 +24,7 @@ environment":
 bash patches/m51-performance/apply-performance-patches.sh <upstream-dir> <device>
 ```
 
-The script copies the four override files below over the upstream
+The script copies the five override files below over the upstream
 checkout (relative paths preserved), verifies each copy landed
 byte-identical and carries the `PORTER OVERRIDE` marker, and fails
 loudly if an upstream target file no longer exists. It is m51-only: any
@@ -99,6 +99,39 @@ Expected effect: the single largest GPU-load reduction available
 without touching the kernel — every blur surface (notification shade,
 quick panel, recents, dialogs) stops being rendered live per frame on
 the Adreno 618.
+
+### F2-blacklist — Keep the blur flags off after `__floating_feature` (added 2026-11-25)
+
+**File:** `unica/patches/__floating_feature/customize.sh`.
+**Evidence:** build #8's §10.1 check (`build-8-artifact-check.md`,
+FAIL 2). The tweaks F2 block above sets the three blur flags FALSE in
+both floating-feature files — but the `__floating_feature` module runs
+**later** (module order in `make_rom.sh`: platform patches → device
+patches (tweaks) → ROM patches (`unica/patches/*`, sorted,
+`__floating_feature` first) → ROM mods), and its `APPLY_TARGET_FEATURE`
+Step 1 walks the work dir's **system** `floating_feature.xml` and
+resets every **non-blacklisted** entry to the m51 TARGET firmware's
+(stock DXE4) value. Only the 3D flag was in that module's BLACKLIST,
+so it was the only one that survived FALSE; `CAPTURED_BLUR` and
+`PARTIAL_BLUR` came back TRUE in the built system file (the vendor
+file was never touched by the module, so it stayed FALSE/FALSE).
+
+This override is the upstream file verbatim (Arnav
+UN1CA-SM7150@`seventeen`, pin `f679035`, SHA-256
+`24d1c685295c43a290d7f2e548fb00f0b82283c28e2b51904aef05a66ba06acc`)
+plus two lines, in alphabetical position in `BLACKLIST`:
+
+```
+SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_CAPTURED_BLUR
+SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_PARTIAL_BLUR
+```
+
+BLACKLIST means "leave the work-dir value alone", so the tweaks FALSE
+values now survive Step 1. The `scripts/assert-60hz.sh` step also
+checks all three blur flags in both built floating-feature files now,
+so a regression fails the build instead of shipping silently (build
+#8's step passed while the flags were TRUE because it never checked
+them).
 
 ### F3 — Restore stock zram, drop swappiness 100
 
@@ -247,8 +280,17 @@ switching EROFS to ext4 (no evidence it helps).
   and the `vm.swappiness` 100 → 60 line. Upstream path verified via
   the GitHub API (HTTP 200) at `Arnav3078/UN1CA-SM7150@seventeen`
   (`unica/mods/settings/system/bin/carbon_power_engine`, 7,397 B).
+- Override `unica/patches/__floating_feature/customize.sh`: `bash -n`
+  clean; diffed against the upstream file at pin `f679035` — the only
+  changes are the `PORTER OVERRIDE` header comment and the two
+  BLACKLIST lines (CAPTURED_BLUR, PARTIAL_BLUR). Upstream SHA-256
+  `24d1c685295c43a290d7f2e548fb00f0b82283c28e2b51904aef05a66ba06acc`.
 - `scripts/assert-60hz.sh` was exercised against fake work dirs
-  (passing case + each failure case) — see its header comment.
+  (passing case + each failure case) — see its header comment. The
+  blur-flag check was additionally tested against the real build #8
+  evidence files: the system `floating_feature.xml` from build #8
+  (CAPTURED_BLUR/PARTIAL_BLUR TRUE) fails the script, and the same
+  file with both flags flipped to FALSE passes.
 - Upstream target paths verified via the GitHub API (HTTP 200) at
   `Arnav3078/UN1CA-SM7150@seventeen` before the pack was written.
 
@@ -264,12 +306,12 @@ FPS numbers anywhere.
 
 ## Maintenance
 
-- If upstream changes any of the four overridden files, the apply
+- If upstream changes any of the five overridden files, the apply
   script still copies the pack's copy over it (the copy is
   unconditional). Re-read the upstream diff on the next build failure
   and re-apply the same edits to the new copy — the README table
   above lists the exact upstream lines each change touches.
-- If upstream *moves* or *deletes* one of the four files, the apply
+- If upstream *moves* or *deletes* one of the five files, the apply
   script fails the build loudly instead of silently dropping the fix.
   Update the pack (new path, or drop the override with a README note)
   — do not work around the failure by deleting the check.
