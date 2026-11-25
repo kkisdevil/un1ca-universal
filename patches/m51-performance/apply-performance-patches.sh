@@ -32,13 +32,16 @@ fi
 
 # Override files, relative to the pack dir and to the upstream checkout.
 # The first three are the original F1/F2/F3/F5/P1 overrides; the fourth is
-# the F3 daemon neutralisation (see README §F3-daemon): the daemon runs at
-# boot AFTER the build-time patches and would otherwise undo F3 at runtime.
+# the F3 daemon neutralisation (see README §F3-daemon); the fifth is the
+# F2 blacklist fix (see README §F2-blacklist): the __floating_feature
+# module runs after the device tweaks and would otherwise reset the blur
+# flags to stock TRUE — build #8 shipped them TRUE in the system file.
 OVERRIDES=(
     "target/m51/dvfs/siop_model.xml"
     "target/m51/patches/tweaks/customize.sh"
     "target/m51/patches/display/vendor.prop"
     "unica/mods/settings/system/bin/carbon_power_engine"
+    "unica/patches/__floating_feature/customize.sh"
 )
 
 for rel in "${OVERRIDES[@]}"; do
