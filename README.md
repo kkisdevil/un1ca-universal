@@ -17,7 +17,94 @@ This project aims to make UN1CA available for as many Samsung phones as possible
 
 - Base UN1CA covers about 15 codenames: A52 / A52s / A53 / A71 / A72 / A73, M52, S20 FE, S21 / S21+ / S21 FE / S21 Ultra, S22 / S22+ / S22 Ultra
 - SM7150 forks add M51 (Galaxy M51)
-- This repo is the starting point. No device builds are published yet.
+- m51 builds exist and are verified: #5, #7 and #8 all built green on
+  GitHub Actions (latest #8, run 45491802857, UN1CA 5.4.0, 10.9 GB).
+  None is flashed or tested on a real M51 yet, and all are signed with
+  throwaway test keys — no release builds are published yet. A rebuild
+  with the blur-flag fix is next.
+
+## Guides, downloads & flashing
+
+Everything below is where it lives — this README points at it, the
+complete steps live in the guides.
+
+> **Universal does not mean the same for every phone.** This porter is
+> universal — one system that builds for many Samsung phones — but
+> every device gets its own build, its own firmware, its own TWRP, its
+> own kernel and its own guide. Nothing here is one-size-fits-all: a
+> file or a step for the M51 is for the M51 only. At each place below,
+> the link for your device is right next to the item it belongs to —
+> follow the link for your device, not another device's file. New
+> devices get their own folder and their own links the same way.
+
+### Guides in this repo
+
+- [docs/FLASHING-GUIDE.md](docs/FLASHING-GUIDE.md) — how to flash:
+  TWRP, the stock ROM, a UN1CA zip, and a custom kernel. Includes the
+  TWRP rule (nothing we build overwrites recovery) and the EFS backup
+  step. Read this before flashing anything.
+- [docs/BUILD-GUIDE.md](docs/BUILD-GUIDE.md) — how to build a ROM with
+  this porter (workflow inputs, the fix pack, the §10.1 artifact check).
+- [docs/FIRMWARE.md](docs/FIRMWARE.md) — which stock firmware each
+  build uses, how it is downloaded and verified, and where it is stored.
+
+### Complete per-device procedures (m51)
+
+The full step-by-step for the Galaxy M51 lives in the sister repo
+[kkisdevil/m51-hyperos](https://github.com/kkisdevil/m51-hyperos).
+Each procedure is its own file, with its own prerequisites, steps,
+checks and troubleshooting — open the one for your job:
+
+- [Device card (m51 facts)](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/README.md)
+- [Unlock the bootloader](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/unlock-bootloader.md)
+- [Flash TWRP](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-twrp.md)
+- [Root (Magisk)](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/root.md)
+- [Flash the stock ROM](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-stock.md)
+- [Flash the HyperOS GSI](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-gsi.md)
+- [Flash UN1CA](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-un1ca.md)
+- [Flash a custom kernel](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-kernel.md)
+
+The same procedures are also on one complete page in that repo's
+[README](https://github.com/kkisdevil/m51-hyperos#readme) (unlock,
+TWRP, root, stock ROM, GSI, UN1CA, kernel, logging), and the m51
+build itself is defined in this repo's
+[devices/m51.json](devices/m51.json).
+
+### Downloads
+
+- **UN1CA ROM for m51** — GitHub Actions artifacts, not releases:
+  [build workflow runs](https://github.com/kkisdevil/un1ca-universal/actions/workflows/build.yml).
+  Latest good build is #8 (run 45491802857, UN1CA 5.4.0, 10.9 GB,
+  decrypted, signed with throwaway test keys — never a release build).
+  Artifacts expire 7 days after the run, so download soon; a rebuild
+  with the blur-flag fix is next.
+- **Stock firmware for m51 (M515FXXU6DXJ1, INS)** — Google Drive
+  [`backups/m51-hyperos/firmware/`](https://drive.google.com/drive/folders/1p-6znbYCrBtKXbkYzo01nQfsHO9O3WUy),
+  6 parts + hashes + rejoin command (see `docs/FIRMWARE.md`).
+- **HyperOS GSI (MysticGSI spring, HyperOS 2 / Android 15)** — Google
+  Drive [`backups/m51-hyperos/gsi/`](https://drive.google.com/drive/folders/1Lki6WecamHlTwQpXPMkM1WvmhGk7fMNu),
+  3 parts + hashes (see the m51-hyperos repo).
+- **Odin** — not in this repo (Samsung does not officially distribute
+  it). Use v3.14.1; its SHA-256 is in `docs/FLASHING-GUIDE.md`.
+- **TWRP for m51** — version 3.7.0_11-0; the flash steps and the
+  source thread are in the m51 procedures above.
+
+### How to flash (short version — the complete steps are in the guides)
+
+1. [Unlock the bootloader](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/unlock-bootloader.md)
+   (wipes the phone — back up first).
+2. [Flash TWRP with Odin](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-twrp.md),
+   then boot straight into recovery.
+3. Back up EFS in TWRP before touching anything else (see the TWRP
+   guide above).
+4. [Flash the UN1CA zip in TWRP](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-un1ca.md).
+   Recovery is never overwritten.
+5. If anything goes wrong, [flash the stock firmware](https://github.com/kkisdevil/m51-hyperos/blob/main/docs/devices/m51/flash-stock.md)
+   from the Drive folder above (BL/CP/CSC only keeps TWRP; full AP
+   replaces it).
+
+Do not skip the guides: the short version above leaves out the
+checks that keep a flash safe.
 
 ## Rules for this project
 
