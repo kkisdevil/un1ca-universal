@@ -27,6 +27,31 @@ upstream fork/branch a device builds from — it resolves it:
   (UN1CA 5.4.0); alternative: mehedi `sixteen` (UN1CA 3.2.1).
 - `_template.json` — copy it to add a device. Do not edit it in place.
 
+## Per-device folders — `devices/<codename>/`
+
+One folder per device, with that device's guides in deep detail.
+Universal does not mean the same for every phone: each folder holds
+only its own device's facts, files and steps.
+
+- `devices/m51/` — **complete**: the verified m51 guides, mirrored
+  from the m51-hyperos repo (`docs/devices/m51/` is the canonical
+  home; if the two copies disagree, that copy wins). Device card +
+  unlock bootloader, flash TWRP, root, flash stock ROM, flash the
+  HyperOS GSI, flash UN1CA, flash a custom kernel.
+- Every other device folder (`a71`, `a52q`, `a72q`, `a52sxq`, `a73xq`,
+  `m52xq`, `a53x`, `r8q`, `o1s`, `p3s`, `r9s`, `t2s`, `b0q`, `g0q`,
+  `r0q`) — **started, not yet researched**: a device-card README
+  with the verified facts (codename, model, SoC family, primary
+  upstream from `soc-families.json`) plus the 7 procedure files as
+  the blank template. Fill them from the device's own sources —
+  never copy the m51 values.
+
+Each folder has the same 8 files: `README.md` (device card) +
+`unlock-bootloader.md`, `flash-twrp.md`, `root.md`, `flash-stock.md`,
+`flash-gsi.md`, `flash-un1ca.md`, `flash-kernel.md`. A folder is only
+"complete" when every guide in it is filled from that device's own
+sources and its README says so.
+
 ## Add a new device
 
 1. Copy `_template.json` to `devices/<codename>.json`
