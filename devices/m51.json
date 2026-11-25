@@ -7,7 +7,7 @@
   },
   "base_firmware": "SM-M515F/BVO/357563172596302",
   "bootloader": {
-    "assertion": "target/m51/installer/assertions.edify requires bootloader M515FXXS6DXE3 and rejects ro.boot.rp == \"6\"",
+    "assertion": "target/m51/installer/assertions.edify (Arnav seventeen) requires bootloader M515FXXS6DXE3; it has NO ro.boot.rp check. The ro.boot.rp check exists only in Mehedi's sixteen tree, where it EXEMPTS rp == \"6\" from the abort — it does not reject it. Corrected 2026-11-25 after the build #8 artifact check proved the built updater-script has no ro.boot.rp check.",
     "required": "M515FXXS6DXE3"
   },
   "build_notes": [
