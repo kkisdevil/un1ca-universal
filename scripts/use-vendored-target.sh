@@ -89,7 +89,7 @@ cp -r "$VENDOR_DIR/." "$UPSTREAM_DIR/target/m51/"
 # Verify every vendored file landed byte-identical.
 MISMATCH=0
 while IFS= read -r -d '' src; do
-    rel="${src#$VENDOR_DIR/}"
+    rel="${src#"$VENDOR_DIR"/}"
     if ! cmp -s "$src" "$UPSTREAM_DIR/target/m51/$rel"; then
         echo "::error::use-vendored-target: $rel did not copy cleanly" >&2
         MISMATCH=1
