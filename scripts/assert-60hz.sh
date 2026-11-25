@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # assert-60hz.sh - P0: fail the build if any 120 Hz leak survives into the
-# built m51 ROM.
+# built m51 ROM. Also fails the build if the F2 live-blur-off flags are
+# not FALSE in the built floating_feature.xml files (added 2026-11-25:
+# build #8 passed this step while CAPTURED_BLUR and PARTIAL_BLUR were
+# still TRUE in the system file, because the step never checked them —
+# the __floating_feature module had reset them to stock after tweaks).
 #
 # Usage: bash scripts/assert-60hz.sh <work-dir>
 #   work-dir : the assembled ROM work dir ($WORK_DIR, exported by the
@@ -16,6 +20,13 @@
 #     SEC_FLOATING_FEATURE_LCD_CONFIG_HFR_MODE must be 0
 #     SEC_FLOATING_FEATURE_LCD_CONFIG_HFR_SUPPORTED_REFRESH_RATE must not
 #       list any rate above 60 (expected value "0")
+#   floating_feature.xml (system, and vendor if present) — F2 blur flags:
+#     SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_CAPTURED_BLUR must be FALSE
+#     SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_PARTIAL_BLUR must be FALSE
+#     SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_3D_SURFACE_TRANSITION_FLAG
+#       must be FALSE. A flag that is absent is a warning, not a failure
+#       (the vendor file legitimately has no 3D tag); a flag that is
+#       present and not FALSE fails the build.
 #   vendor/build.prop:
 #     ro.surface_flinger.enable_frame_rate_override must not be true
 #
@@ -77,13 +88,34 @@ check_ff() {
 FF_SYSTEM="$WORK_DIR/system/system/etc/floating_feature.xml"
 FF_VENDOR="$WORK_DIR/vendor/etc/floating_feature.xml"
 
+# F2 blur flags: every blur flag the tweaks F2 block sets FALSE must still
+# be FALSE in the built file. Present-and-not-FALSE fails; absent only
+# warns (the vendor file has no 3D tag at all, so absence there is normal).
+check_ff_blur() {
+    local ff="$1" label="$2" val tag
+    for tag in SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_CAPTURED_BLUR \
+               SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_PARTIAL_BLUR \
+               SEC_FLOATING_FEATURE_GRAPHICS_SUPPORT_3D_SURFACE_TRANSITION_FLAG; do
+        val="$(ff_value "$ff" "$tag")"
+        if [ -z "$val" ]; then
+            warn "$label: $tag entry absent (F2 did not write it here)"
+        elif [ "$val" != "FALSE" ]; then
+            fail "$label: $tag is '$val', expected FALSE (live blur still advertised)"
+        else
+            pass "$label: $tag=FALSE"
+        fi
+    done
+}
+
 if [ -f "$FF_SYSTEM" ]; then
     check_ff "$FF_SYSTEM" "system floating_feature.xml"
+    check_ff_blur "$FF_SYSTEM" "system floating_feature.xml"
 else
     fail "system floating_feature.xml not found at $FF_SYSTEM - cannot verify the 60 Hz pin"
 fi
 if [ -f "$FF_VENDOR" ]; then
     check_ff "$FF_VENDOR" "vendor floating_feature.xml"
+    check_ff_blur "$FF_VENDOR" "vendor floating_feature.xml"
 else
     echo "60hz-assert: note - no vendor floating_feature.xml (checked system only)"
 fi
@@ -107,8 +139,8 @@ else
 fi
 
 if [ "$FAILURES" -gt 0 ]; then
-    echo "::error::assert-60hz: $FAILURES check(s) failed - the built ROM leaks 120 Hz settings; see above." >&2
+    echo "::error::assert-60hz: $FAILURES check(s) failed - the built ROM leaks 120 Hz settings or still advertises live blur; see above." >&2
     exit 1
 fi
-echo "60hz-assert: all checks passed - no 120 Hz leak in the built ROM."
+echo "60hz-assert: all checks passed - no 120 Hz leak and no live-blur flags in the built ROM."
 exit 0
