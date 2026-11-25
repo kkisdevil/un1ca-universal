@@ -204,7 +204,7 @@ not covered step-by-step here and not tested by us.
    verbatim). Also a TWRP backup of boot/system/vendor. Do not skip
    this: a bad flash without an EFS backup can cost the IMEI.
 2. Check the bootloader: `assertions.edify` requires bootloader
-   `M515FXXS6DXE3` or newer (rejects `ro.boot.rp == "6"`). If the phone
+   `M515FXXS6DXE3` or newer (Arnav's tree has no `ro.boot.rp` check — verified in the build #8 artifact). If the phone
    is on an older bootloader, flash the official firmware first
    (`FLASHING-GUIDE.md`).
 3. Copy the UN1CA zip to the phone, boot into **TWRP**, flash the zip.
@@ -240,8 +240,7 @@ it is offered to anyone:
    retention 7 days, logs 14 days — download soon). Record run id,
    artifact name, exact byte size, SHA-256.
 2. **Zip structure.** `META-INF/com/google/android/update-binary`
-   present; `updater-script` asserts `SM-M515F` (rejects
-   `ro.boot.rp == "6"`); `build_info.txt` carries the right version /
+   present; `updater-script` asserts `SM-M515F` (bootloader ≥ `M515FXXS6DXE3`; no `ro.boot.rp` check in Arnav's tree — verified in the build #8 artifact); `build_info.txt` carries the right version /
    timestamp / device; partition images present for every dynamic
    partition; **no stray `recovery.img` packaged**; `vbmeta.img`
    patched (byte 123 → `0x03`, AVB disabled).
