@@ -137,8 +137,19 @@ jobs:
             esac
             bash scripts/validate-device.sh "$f" --check-upstream
           done
-          curl -fsSL https://api.github.com/repos/salvogiangri/UN1CA/branches/sixteen >/dev/null \
-            && echo "Upstream OK: salvogiangri/UN1CA@sixteen"
+          # The base repo check must be as tolerant as validate-device.sh:
+          # a 403/429 from the unauthenticated API is a rate limit on a
+          # busy runner, not a missing repo — warn and skip. Only a 404
+          # fails the check. (Validate #32, 2026-11-25: the bare
+          # `curl -fsSL` below exited 22 on a runner-side 403 and failed
+          # the whole step, even though the device check had already
+          # warned and skipped the same 403.)
+          CODE="$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://api.github.com/repos/salvogiangri/UN1CA/branches/sixteen)" || CODE="000"
+          case "$CODE" in
+            200) echo "Upstream OK: salvogiangri/UN1CA@sixteen" ;;
+            404) echo "Upstream base repo/branch not found: salvogiangri/UN1CA@sixteen" >&2; exit 1 ;;
+            *) echo "::warning::base-repo check inconclusive (HTTP $CODE — GitHub API rate limit / transient error); skipping upstream verification" ;;
+          esac
 
       # Modify-and-fix loop: validation evidence is always uploaded,
       # even on failure, so a failing run can be fixed from the logs.
